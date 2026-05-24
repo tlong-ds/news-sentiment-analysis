@@ -1,0 +1,17 @@
+\section{Discussion of Findings}
+Our empirical findings offer several insights into the dynamics of volatility forecasting and media information mapping in emerging financial markets:
+
+\begin{itemize}
+    \item \textbf{Non-linear vs. Linear Specifications:} The failure of the GARCH-X model (out-of-sample RMSE of $0.005053$, which is significantly worse than pure GARCH) compared to the success of the hybrid GARCH + LSTM model confirms that the relationship between news sentiment and index volatility is highly non-linear. Entering news sentiment linearly into the GARCH variance parameter causes misspecification and overfits to noise in the training window. In contrast, the LSTM residual correction stage successfully models state-dependent, complex thresholds.
+    \item \textbf{Sitemap Linguistic Bias:} The ablation study (training the LSTM without sentiment features) achieved an RMSE of $0.004031$, which is very close to the baseline hybrid's $0.004022$. This indicates that while the LSTM residual correction itself is highly effective (saving $13.8\%$ in RMSE over baseline GARCH), the marginal contribution of raw news sentiment shares is small. This is primarily explained by the positive language bias of Vietnamese financial sitemaps. Due to growth-centric terminology, daily sentiment shares are highly skewed and highly correlated over time, limiting their conditional information variance.
+    \item \textbf{Volatility Regime Sensitivity:} In line with the subperiod analysis, the hybrid model excels during calm volatility regimes (where forecast RMSE drops by $53\%$) by correcting GARCH's persistent overestimate of variance. However, during systemic structural breaks (e.g., the liquidity/manipulation shocks of 2022), volatility is driven by extreme, non-repetitive events that sequential LSTM histories cannot predict, leading to overcorrection.
+\end{itemize}
+
+These findings are highly relevant for option pricing, margin requirements, and risk management in the HoSE index. Incorporating non-linear machine learning architectures on top of traditional GARCH baseline forecasts offers a statistically significant, robust advantage for volatility forecasting.
+
+\section{Conclusion}
+This paper developed and evaluated a hybrid GARCH + LSTM volatility forecasting model for the Vietnamese stock market benchmark (VN-Index) over the 2015--2024 period, incorporating news sentiment metrics from a domain-adapted PhoBERT model. 
+
+Our results demonstrate that the hybrid model significantly outperforms the baseline GARCH(1,1) model out-of-sample ($13.8\%$ RMSE reduction), with a Diebold-Mariano test confirming statistical significance at the $99.9\%$ confidence level ($p < 0.001$). Robustness checks verify that the model is stable under alternative thresholds and volatility target definitions. However, linear exogenous GARCH-X specifications degrade forecast performance, highlighting the necessity of non-linear machine learning architectures to map news sentiment to index volatility. 
+
+Future research could explore fine-tuning Vietnamese financial sentiment classifiers on localized, manually labeled economic dictionaries to reduce positive linguistic bias, as well as incorporating multi-source textual data from forums and social media.

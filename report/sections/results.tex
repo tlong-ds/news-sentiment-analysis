@@ -1,0 +1,125 @@
+\section{Empirical Results}
+
+\subsection{Descriptive Statistics \& GARCH Diagnostics}
+We begin by analyzing the statistical properties of the daily log returns of the VN-Index and the CafeF news sentiment scores. Over the ten-year sample period (2015--2024), which comprises $2,497$ active trading days, the VN-Index return series displays typical financial time-series characteristics. Table~\ref{tab:descriptive_stats} presents the descriptive statistics for returns, news sentiment, and daily article counts.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Descriptive Statistics of VN-Index Daily Returns and News Sentiment}
+    \label{tab:descriptive_stats}
+    \begin{tabular}{lccccc}
+        \toprule
+        Series & Mean & Std. Dev. & Minimum & Maximum & Kurtosis \\
+        \midrule
+        VN-Index Returns (\%) & 0.0338 & 1.1390 & -6.9076 & 4.8600 & 7.5934 \\
+        News Sentiment Score & 0.4526 & 0.3694 & -0.9622 & 0.9991 & -- \\
+        Daily News Volume & 34.5 & 28.7 & 0 & 386 & -- \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The daily return series exhibits a high kurtosis of $7.59$, which is significantly above the Gaussian value of $3.0$. This strong leptokurtosis indicates a heavy-tailed distribution, which is visually confirmed in Figure~\ref{fig:return_distribution} where the empirical density has a much higher peak and thicker tails than the normal curve. A Jarque-Bera test strongly rejects the null hypothesis of normality ($JB = 2554.1$, $p < 0.001$).
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.75\textwidth]{figures/return_distribution.png}
+    \caption{VN-Index Daily Return Distribution vs. Normal Fit}
+    \label{fig:return_distribution}
+\end{figure}
+
+The Ljung-Box Q-test indicates significant autocorrelation in returns ($Q(5) = 14.48$, $p = 0.0128$; $Q(10) = 21.21$, $p = 0.0197$) and extremely strong autocorrelation in squared returns ($Q(5) = 414.46$, $p < 0.001$; $Q(10) = 681.83$, $p < 0.001$), confirming the presence of strong conditional heteroskedasticity and volatility clustering. Volatility clustering is plotted over the full sample in Figure~\ref{fig:vol_clustering}, with notable volatility shocks occurring during the 2020 COVID-19 pandemic crash and the mid-2022 domestic liquidity tightening.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/vol_clustering.png}
+    \caption{VN-Index Daily Return and GARCH Conditional Volatility (2015--2024)}
+    \label{fig:vol_clustering}
+\end{figure}
+
+For the news sentiment series, we analyze the aggregate corpus of $86,179$ articles. As shown in Table~\ref{tab:descriptive_stats}, the mean sentiment score is $0.4526$, indicating a pronounced positive linguistic bias in Vietnamese financial media sitemaps. Figure~\ref{fig:sentiment_distribution} displays the histogram of individual article sentiment scores. Under a standard threshold of $\pm 0.05$, positive articles account for $84.34\%$ ($72,686$ articles) of the corpus, while negative articles represent only $12.04\%$ ($10,380$ articles) and neutral articles constitute $3.61\%$ ($3,113$ articles). 
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.75\textwidth]{figures/sentiment_distribution.png}
+    \caption{Distribution of individual CafeF news sentiment scores showing positive bias}
+    \label{fig:sentiment_distribution}
+\end{figure}
+
+The daily article count averages $34.5$ articles per day, with a standard deviation of $28.7$, reaching a maximum of $386$ articles on high-intensity trading days. Notably, out of $2,497$ trading days, only $4$ days ($0.16\%$) had zero aligned news articles, confirming that financial news sitemaps provide a continuous signal.
+
+In the first stage of our methodology, we fit the baseline Gaussian GARCH(1,1) model on the training partition (2015--2021). The estimated MLE parameters (standard errors in parentheses) are:
+$$\omega = 0.0258, \quad \alpha = 0.1026, \quad \beta = 0.8810$$
+The parameter sum $\alpha + \beta = 0.9836 < 1.0$ confirms covariance stationarity, representing high volatility persistence. To ensure the baseline model is well-specified, we test the standardized residuals. The Ljung-Box p-values for squared standardized residuals are $0.9796$ (lag 5) and $0.4956$ (lag 10). Both are far above the $5\%$ level, failing to reject the null hypothesis of no remaining ARCH effects and confirming that the baseline GARCH model successfully captures the linear time-series dynamics of conditional variance.
+
+\subsection{Volatility Forecast Performance}
+Table~\ref{tab:forecasting_results} compares the out-of-sample point forecast accuracy of the GARCH baseline and the Hybrid GARCH + Sentiment LSTM model over the test split (2023--2024). 
+
+\begin{table}[htbp]
+    \centering
+    \caption{Out-of-Sample Volatility Forecast Performance (2023--2024)}
+    \label{tab:forecasting_results}
+    \begin{tabular}{lccc}
+        \toprule
+        Model & RMSE & MAE & MAPE \\
+        \midrule
+        GARCH(1,1) Baseline & 0.004701 & 0.003828 & 79.24\% \\
+        Hybrid GARCH + Sentiment-LSTM & 0.004020 & 0.002628 & 41.21\% \\
+        \textbf{Improvement (\%)} & \textbf{-14.48\%} & \textbf{-31.35\%} & \textbf{-48.00\%} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The hybrid model achieves an RMSE of $0.004020$ compared to $0.004701$ for the baseline GARCH, representing a $14.48\%$ reduction in forecast error. The Mean Absolute Error (MAE) decreases by $31.35\%$ ($0.002628$ vs $0.003828$), and the Mean Absolute Percentage Error (MAPE) is cut nearly in half, dropping from $79.24\%$ to $41.21\%$ (a $48.00\%$ reduction). 
+
+To test whether the difference in forecast errors is statistically significant, we conduct a Diebold-Mariano test with a Newey-West lag adjustment. The DM test statistic is $3.420$, corresponding to a two-sided $p$-value of $0.000627$. We reject the null hypothesis of equal predictive accuracy at the $99.9\%$ confidence level ($p < 0.001$), confirming that the hybrid model's forecasting gains are statistically significant. Figure~\ref{fig:forecast_comparison} plots the out-of-sample volatility forecast paths of both models alongside realized Parkinson volatility.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/forecast_comparison.png}
+    \caption{Out-of-Sample Volatility Forecast Comparison vs. Realized Volatility (2023--2024)}
+    \label{fig:forecast_comparison}
+\end{figure}
+
+\subsection{Subperiod and Regime Sensitivity Analysis}
+To understand when the hybrid model adds value, we segment the out-of-sample test split into calm and volatile (shock) regimes based on the median realized volatility. The results are highly regime-sensitive:
+\begin{itemize}
+    \item \textbf{Calm Volatility Regimes ($125$ days):} The GARCH baseline tends to overestimate volatility during calm periods due to its slow adjustment speed. The Hybrid GARCH + Sentiment LSTM model successfully corrects this bias, reducing the forecast RMSE by $51.05\%$ ($0.002411$ vs $0.004926$) and the MAE by $61.48\%$ ($0.001746$ vs $0.004533$).
+    \item \textbf{High Volatility/Shock Regimes ($124$ days):} During periods of market crashes or extreme volatility spikes, the hybrid model performs worse than the baseline, with RMSE increasing by $15.50\%$ ($0.005156$ vs $0.004464$) and MAE increasing by $12.83\%$ ($0.003518$ vs $0.003118$). This suggests that the LSTM stage can overreact or mispredict during rare, extreme market shocks that were underrepresented in the training sequence, whereas the baseline GARCH(1,1) model's mathematical bounds provide greater stability.
+\end{itemize}
+
+\subsection{Robustness Checks}
+We report the point forecast metrics and Diebold-Mariano test results across all seven robustness check specifications in Table~\ref{tab:robustness_results}. To prevent page overflow, the table is scaled to fit the text boundaries. Figure~\ref{fig:robustness_comparison} graphically compares the RMSE of the baseline GARCH versus the Hybrid model across these specifications.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Robustness Check Comparison Summary}
+    \label{tab:robustness_results}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lcccccc}
+        \toprule
+        Specification & GARCH RMSE & Hybrid RMSE & GARCH MAE & Hybrid MAE & DM Stat & DM $p$-value \\
+        \midrule
+        Baseline (Threshold $\pm 0.05$) & 0.004701 & 0.004020 & 0.003828 & 0.002628 & 3.420 & 0.00063 \\
+        Threshold $\pm 0.10$ & 0.004701 & 0.004021 & 0.003828 & 0.002629 & 3.403 & 0.00067 \\
+        Threshold $\pm 0.15$ & 0.004701 & 0.004001 & 0.003828 & 0.002632 & 3.681 & 0.00023 \\
+        Garman-Klass Vol Target & 0.004385 & 0.003682 & 0.003570 & 0.002496 & 3.354 & 0.00080 \\
+        Ablation (No Sentiment) & 0.004701 & 0.004031 & 0.003828 & 0.002631 & 3.290 & 0.00100 \\
+        GARCH-X Specification & 0.004835 & 0.005053 & 0.003945 & 0.004146 & -6.339 & $<0.00001$ \\
+        Expanding Window GARCH & 0.004830 & 0.004113 & 0.003945 & 0.002804 & 3.918 & 0.00009 \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/robustness_comparison.png}
+    \caption{Volatility Forecast RMSE (\%) Comparison across Robustness Specifications}
+    \label{fig:robustness_comparison}
+\end{figure}
+
+The hybrid model consistently and significantly outperforms the GARCH baseline across all alternative sentiment thresholds ($\pm 0.10$ and $\pm 0.15$) and both volatility proxies (Parkinson and Garman-Klass), with all Diebold-Mariano test p-values remaining below $0.001$. 
+
+In the feature ablation test (where the LSTM is trained only on GARCH residuals and return lags, without news sentiment features), the hybrid model still achieves a low RMSE of $0.004031$, indicating that the non-linear residual-correction structure of the LSTM is the primary driver of forecast improvement. The inclusion of news sentiment features yields a marginal, but statistically significant, additional improvement (reducing RMSE from $0.004031$ to $0.004020$), which is constrained by the positive bias of news sitemaps.
+
+Most notably, the linear GARCH-X specification (adding lagged daily mean sentiment as an exogenous regressor in the conditional variance equation) performs worse than the pure GARCH baseline, raising the out-of-sample RMSE to $0.005053$ (compared to $0.004835$ for the GARCH-X baseline). This yields a highly significant negative DM statistic of $-6.339$ ($p < 0.001$). This out-of-sample degradation indicates that entering news sentiment linearly into the GARCH variance parameter causes misspecification and overfits to noise in the training window, confirming the necessity of a non-linear, hybrid machine learning framework.

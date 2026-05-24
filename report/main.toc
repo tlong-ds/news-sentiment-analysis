@@ -1,0 +1,17 @@
+\contentsline {section}{\numberline {1}Introduction}{3}{section.1}%
+\contentsline {section}{\numberline {2}Review of Relevant Literature}{4}{section.2}%
+\contentsline {section}{\numberline {3}Data and Methodology}{4}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Data and Sample Selection}{4}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Trading-Day Alignment and Imputation}{5}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Volatility target definitions}{5}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Econometric \& Neural Network Specifications}{5}{subsection.3.4}%
+\contentsline {subsubsection}{\numberline {3.4.1}Baseline GARCH(1,1)}{5}{subsubsection.3.4.1}%
+\contentsline {subsubsection}{\numberline {3.4.2}GARCH-X(1,1)}{6}{subsubsection.3.4.2}%
+\contentsline {subsubsection}{\numberline {3.4.3}Hybrid GARCH + Sentiment LSTM}{6}{subsubsection.3.4.3}%
+\contentsline {section}{\numberline {4}Empirical Results}{6}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Descriptive Statistics \& GARCH Diagnostics}{6}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Volatility Forecast Performance}{8}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Subperiod and Regime Sensitivity Analysis}{9}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Robustness Checks}{9}{subsection.4.4}%
+\contentsline {section}{\numberline {5}Discussion of Findings}{11}{section.5}%
+\contentsline {section}{\numberline {6}Conclusion}{11}{section.6}%

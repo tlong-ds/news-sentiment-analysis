@@ -48,6 +48,7 @@ def _detect_sentiment_frame(df: pd.DataFrame) -> SentimentFrameSpec:
 def aggregate_article_sentiment(
     sentiment_df: pd.DataFrame,
     articles_clean_df: pd.DataFrame | None = None,
+    sentiment_threshold: float = 0.05,
 ) -> pd.DataFrame:
     """Aggregate article-level scores to daily trading-day sentiment features."""
     spec = _detect_sentiment_frame(sentiment_df)
@@ -63,14 +64,13 @@ def aggregate_article_sentiment(
     if df.empty:
         raise SentimentAggregationError("Sentiment scores are empty after cleaning.")
 
-    label_col = "sentiment_label" if "sentiment_label" in df.columns else None
-    if label_col is None:
+    label_col = "sentiment_label"
+    if label_col not in df.columns or sentiment_threshold != 0.05:
         df["sentiment_label"] = np.select(
-            [df["sentiment_score"] > 0.05, df["sentiment_score"] < -0.05],
+            [df["sentiment_score"] > sentiment_threshold, df["sentiment_score"] < -sentiment_threshold],
             ["positive", "negative"],
             default="neutral",
         )
-        label_col = "sentiment_label"
 
     grouped = df.groupby("date", as_index=False).agg(
         mean_sentiment=("sentiment_score", "mean"),
@@ -157,11 +157,16 @@ def aggregate_article_sentiment(
     return daily.sort_values("date").reset_index(drop=True)
 
 
-def compute_volatility_features(price_df: pd.DataFrame) -> pd.DataFrame:
-    """Create return and volatility proxy features from VN-Index OHLCV data."""
-    df = price_df.copy()
+def compute_volatility_features(df: pd.DataFrame, target_type: str = "parkinson") -> pd.DataFrame:
+    """Compute returns, Parkinson, Garman-Klass, and z-score features from raw prices."""
+    # Ensure columns are standardized
     rename_map = {
         "Date": "date",
+        "Close": "close",
+        "Open": "open",
+        "High": "high",
+        "Low": "low",
+        "Volume": "volume",
         "TRDPRC_1": "close",
         "OPEN_PRC": "open",
         "HIGH_1": "high",
@@ -189,7 +194,14 @@ def compute_volatility_features(price_df: pd.DataFrame) -> pd.DataFrame:
             - (2 * np.log(2) - 1) * np.log(df["close"] / df["open"]).pow(2),
         )
     )
-    df["target_vol"] = df["parkinson_vol"].fillna(df["abs_return"])
+    
+    if target_type == "parkinson":
+        df["target_vol"] = df["parkinson_vol"].fillna(df["abs_return"])
+    elif target_type == "garman_klass":
+        df["target_vol"] = df["gk_vol"].fillna(df["abs_return"])
+    else:
+        raise ValueError(f"Unknown target_type: {target_type}")
+        
     df["target_next_vol"] = df["target_vol"].shift(-1)
     df["volume_zscore_21"] = (
         (df["volume"] - df["volume"].rolling(21).mean()) / df["volume"].rolling(21).std()
@@ -203,10 +215,12 @@ def build_model_frame(
     daily_news_path: str | Path | None = None,
     sentiment_path: str | Path | None = None,
     articles_clean_path: str | Path | None = None,
+    sentiment_threshold: float = 0.05,
+    target_type: str = "parkinson",
 ) -> pd.DataFrame:
     """Merge price, daily news intensity, and daily sentiment into one frame."""
     price_df = pd.read_csv(price_path)
-    model_df = compute_volatility_features(price_df)
+    model_df = compute_volatility_features(price_df, target_type=target_type)
 
     if daily_news_path is not None:
         daily_news = pd.read_csv(daily_news_path, parse_dates=["date"])
@@ -230,7 +244,11 @@ def build_model_frame(
             if default_clean_path.exists():
                 articles_clean_df = pd.read_csv(default_clean_path)
                 
-        daily_sentiment = aggregate_article_sentiment(sentiment_df, articles_clean_df=articles_clean_df)
+        daily_sentiment = aggregate_article_sentiment(
+            sentiment_df,
+            articles_clean_df=articles_clean_df,
+            sentiment_threshold=sentiment_threshold,
+        )
         model_df = model_df.merge(daily_sentiment, on="date", how="left")
 
     # Step 4.2: Zero-imputation handling for trading days with zero articles.

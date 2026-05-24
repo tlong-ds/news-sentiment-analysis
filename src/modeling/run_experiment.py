@@ -118,7 +118,7 @@ def main() -> None:
             batch_size=args.batch_size,
         )
 
-        residual_pred = lstm_model.predict(sequences["x_test"], verbose=0).reshape(-1, 1)
+        residual_pred = lstm_model(sequences["x_test"], training=False).numpy().reshape(-1, 1)
         hybrid_pred = baseline + residual_pred
         summary["hybrid_metrics"] = evaluate_forecasts(actual, hybrid_pred)
         summary["history"] = {

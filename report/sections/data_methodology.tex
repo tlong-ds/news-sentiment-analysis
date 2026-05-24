@@ -1,0 +1,50 @@
+\section{Data and Methodology}
+
+\subsection{Data and Sample Selection}
+Our dataset spans a ten-year period from January 1, 2015, to December 31, 2024. It consists of two main components:
+\begin{enumerate}
+    \item \textbf{Index Price Data:} Daily Open, High, Low, and Close prices for the VN-Index (HoSE benchmark) were obtained from Quote history files. The daily log return is computed as $r_t = \ln(Close_t / Close_{t-1})$.
+    \item \textbf{News Corpus:} A web-scraped database of financial articles from the CafeF sitemap. After hash-based deduplication and length filtering ($body\_len \ge 100$ characters), the corpus contains $86,179$ unique articles.
+\end{enumerate}
+
+\subsection{Trading-Day Alignment and Imputation}
+Because financial markets operate on active trading sessions whereas sitemaps publish news continuously (including nights, weekends, and holidays), proper temporal alignment is critical. We define a strict trading-day alignment rule based on the HoSE session closure:
+\begin{itemize}
+    \item Articles published on a trading day $t$ before or at **14:45** (session close) are aligned to the current trading day $t$.
+    \item Articles published on a trading day $t$ after **14:45**, on weekends, or during public holidays (e.g., Lunar New Year) are aligned to the next active trading day $t+1$.
+\end{itemize}
+
+A key diagnostic of sitemap coverage is the frequency of zero-news trading days. Out of $2,498$ trading days in the sample, only **$4$ days (0.16\%)** had zero aligned news articles. Since this is far below the $5\%$ threshold recommended in the literature, we handle missing daily sentiment features using zero-imputation:
+$$\text{n\_articles}_t = 0, \quad \text{mean\_sentiment}_t = 0.0, \quad \text{sentiment\_std}_t = 0.0$$
+
+\subsection{Volatility target definitions}
+To evaluate forecast accuracy, we construct two daily volatility proxies:
+\begin{enumerate}
+    \item \textbf{Parkinson Volatility:} A high-low range estimator:
+    $$\sigma_{P, t} = \sqrt{\frac{\left(\ln\left(H_t / L_t\right)\right)^2}{4 \ln 2}}$$
+    where $H_t$ and $L_t$ are the high and low prices of index on day $t$.
+    \item \textbf{Garman-Klass Volatility:} An estimator incorporating opening and closing gaps:
+    $$\sigma_{GK, t} = \sqrt{0.5 \left(\ln\frac{H_t}{L_t}\right)^2 - (2\ln 2 - 1)\left(\ln\frac{C_t}{O_t}\right)^2}$$
+    where $C_t$ and $O_t$ are the close and open prices.
+\end{enumerate}
+The target variable is the lead volatility proxy: $y^{\text{vol}}_{t+1} = \sigma_{t+1}$.
+
+\subsection{Econometric \& Neural Network Specifications}
+
+\subsubsection{Baseline GARCH(1,1)}
+Returns are scaled by 100 ($y_t = r_t \times 100$). The conditional variance is modeled recursively:
+$$\sigma_t^2 = \omega + \alpha y_{t-1}^2 + \beta \sigma_{t-1}^2$$
+subject to constraints: $\omega > 0$, $\alpha \ge 0$, $\beta \ge 0$, and $\alpha + \beta < 1.0$.
+
+\subsubsection{GARCH-X(1,1)}
+For comparison, the GARCH-X model integrates the exogenous sentiment variable $X_{t-1}$ directly into the variance equation:
+$$\sigma_t^2 = \omega + \alpha y_{t-1}^2 + \beta \sigma_{t-1}^2 + \gamma X_{t-1}$$
+where $X_{t-1}$ is the lagged daily aggregate \texttt{mean\_sentiment}.
+
+\subsubsection{Hybrid GARCH + Sentiment LSTM}
+The hybrid model uses a two-stage approach. In Stage 1, baseline GARCH parameters are estimated, and the 1-step-ahead GARCH volatility forecast $\sigma_{t, \text{GARCH}}$ is computed. The conditional residual target for day $t$ is:
+$$e_t = \sigma_{t, \text{realized}} - \sigma_{t, \text{GARCH}}$$
+In Stage 2, an LSTM network is trained to predict $e_t$. The input sequence is a rolling window of length $L=15$ days containing 17 features (including returns, GARCH standard residuals, daily article counts, daily mean sentiment, net sentiment, and macro/market category sentiment shares).
+The final hybrid volatility forecast is:
+$$\sigma_{t, \text{hybrid}} = \sigma_{t, \text{GARCH}} + \hat{e}_{t, \text{LSTM}}$$
+where $\hat{e}_{t, \text{LSTM}}$ is the residual predicted by the neural network.

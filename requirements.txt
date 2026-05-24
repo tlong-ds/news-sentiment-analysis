@@ -1,5 +1,15 @@
-pandas
 beautifulsoup4
-requests
+matplotlib
+numpy
+pandas
 python-dateutil
+requests
+scipy
+seaborn
 textblob
+vnstock
+
+# Modeling stack for the thesis workflow
+scikit-learn
+tensorflow
+yfinance

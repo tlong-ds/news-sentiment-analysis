@@ -1,57 +1,243 @@
-# News Sentiments Analysis (Vietnam)
+# News Sentiment and VN-Index Volatility
 
-This project collects business news from VnExpress to analyze news sentiments.
+This repo is now structured around one research question:
 
-## Project Overview
+**Can Vietnamese financial news sentiment improve volatility forecasting of the VN-Index beyond a pure GARCH baseline?**
 
-The objective is to analyze the sentiment of news articles from VnExpress (English edition) to provide insights into media trends and economic sentiment in Vietnam.
+The implemented workflow is a two-stage hybrid design:
 
-## Directory Structure
+1. Fit a pure GARCH-family baseline on VN-Index daily returns.
+2. Feed GARCH residual information, baseline volatility forecasts, and daily sentiment features into an LSTM that learns the residual correction.
+
+## Research Workflow
+
+### Stage 0: Build the data
+
+1. **Backup** the raw CafeF CSV before any overwrite:
+   ```bash
+   python -m src.data.backup_raw
+   ```
+2. **Scrape** Vietnamese business and market news over the 2015-2024 window (CafeF only).
+3. **Preprocess** using the modular pipeline — cleans bodies, aligns to trading day (with
+   HoSE 14:45 close cutoff when `published_at` is available), aggregates daily controls,
+   and merges with the full price calendar:
+   ```bash
+    python -m src.preprocessing.pipeline \
+        --raw-news data/raw/news_VN_cafef.csv \
+        --prices data/raw/prices_VN.csv
+   ```
+4. **Export:**
+   - `data/processed/articles_clean.csv` — article-level with alignment diagnostics
+   - `data/processed/daily_news_prices.csv` — daily market + news-intensity frame
+   - `data/processed/preprocessing_diagnostics.json` — machine-readable provenance summary
+
+### Stage 1: Sentiment inference
+
+The repo expects article-level sentiment scores with at least:
+
+- `trading_date` or `date`
+- `sentiment_score`
+
+Optional:
+
+- `sentiment_label` with values like `positive`, `neutral`, `negative`
+
+If you pass article-level scores into the modeling pipeline, the repo will aggregate them into daily features:
+
+- `mean_sentiment`
+- `sentiment_std`
+- `sentiment_volume`
+- `positive_share`
+- `neutral_share`
+- `negative_share`
+
+### Stage 2: Volatility forecasting experiment
+
+The new `src/modeling` package builds a single experiment frame with:
+
+- price-derived volatility proxies: `log_return`, `abs_return`, `parkinson_vol`, `gk_vol`
+- news-intensity controls: `n_articles`, `n_categories`, `mean_body_len`
+- daily sentiment features
+- GARCH baseline outputs: conditional volatility, one-step-ahead forecast, standardized residuals
+
+The experiment target is next-day volatility, with the hybrid model learning:
+
+`hybrid_residual_target = realized_next_day_volatility - garch_forecast_volatility`
+
+## Project Layout
 
 ```text
 .
 ├── src/
-│   ├── ingestion/          # Data collection scripts
-│   │   └── vnexpress_scraper.py  # Scrapes VnExpress business news
-│   ├── utils/              # Shared utility modules
-│   │   └── text_utils.py         # HTML cleaning and text processing
-│   └── config.py           # Centralized project configuration
-├── data/                   # Collected datasets (CSVs)
-├── tests/                  # Diagnostic tests
-├── plan.md                 # Original project plan
-└── GEMINI.md               # Project foundational context
+│   ├── ingestion/                  # News collection (cafef, vnstock, vific)
+│   ├── preprocessing/
+│   │   ├── pipeline.py             # Modular preprocessing entrypoint
+│   │   └── news_alignment.py       # Trading-day alignment primitives
+│   ├── modeling/
+│   │   ├── dataset.py              # Sentiment aggregation + experiment frame
+│   │   ├── hybrid.py               # GARCH baseline + LSTM sequence prep
+│   │   └── run_experiment.py       # Reproducible CLI runner
+│   ├── data/
+│   │   └── backup_raw.py           # Raw CSV backup before pipeline runs
+│   ├── utils/
+│   └── config.py
+├── notebooks/
+│   └── 01_data_processing.ipynb    # Thin execution + inspection layer
+├── data/
+│   ├── raw/                        # Scraped files from news and vnstock index prices
+│   │   ├── news_VN_cafef.csv       # Raw CafeF corpus (primary)
+│   │   ├── news_VN_vnstock.csv
+│   │   ├── news_VN_cafef_backup_*.csv
+│   │   ├── news_scrape_ledger.json
+│   │   └── prices_VN.csv
+│   ├── fine-tunes/                 # ViFiC text data for PhoBERT domain adaptation
+│   │   ├── ViFiC-93M/
+│   │   └── ViFiC-120M/
+│   └── processed/                  # Cleaned, tokenized, and aligned datasets
+│       ├── articles_clean.csv
+│       ├── daily_news_prices.csv
+│       └── preprocessing_diagnostics.json
+└── tests/
+    ├── test_preprocessing_alignment.py
+    ├── test_preprocessing_pipeline.py
+    ├── test_modeling_pipeline.py
+    └── test_scrape_news.py
 ```
 
-## Setup & Installation
+## Setup
 
-1. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## Usage
-
-### VnExpress Scraping
-
-To scrape business news for Vietnam:
 ```bash
-python -m src.ingestion.vnexpress_scraper
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## Configuration
+## Main Commands
 
-All global settings, including the date range (`START_DATE`, `END_DATE`) and categories, are managed in `src/config.py`.
+### 1. Back up raw data (always run first)
 
-## Data Dictionary
+```bash
+python -m src.data.backup_raw
+```
 
-- `news_VN_vnexpress.csv`: Scraped business news from VnExpress containing:
-    - `url`: Article URL
-    - `title`: Article title
-    - `date`: Publication date
-    - `body`: Cleaned article text
+### 2. Rebuild cleaned datasets
+
+**Via CLI (recommended for reproducibility):**
+
+```bash
+python -m src.preprocessing.pipeline \
+  --raw-news data/raw/news_VN_cafef.csv \
+  --prices data/raw/prices_VN.csv \
+  --out-dir data/processed
+```
+
+**Via notebook (for interactive inspection):**
+
+- [notebooks/01_data_processing.ipynb](/Users/bunnypro/Projects/news-sentiments-analysis/notebooks/01_data_processing.ipynb)
+
+If LSEG/Workspace access is unavailable, the preferred fallback is `vnstock`
+quote history for `VNINDEX`:
+
+```bash
+python -m src.data.fetch_prices_vnstock --start 2015-01-01 --end 2024-12-31
+```
+
+### 3. Run the full CafeF scrape (background)
+
+```bash
+nohup python -m src.ingestion.pipeline \
+  --sources cafef \
+  --start 2015-01-01 \
+  --end 2024-12-31 \
+  --resume \
+  > logs/cafef_scrape_$(date +%Y%m%d_%H%M%S).log 2>&1 &
+echo $! > logs/cafef_scrape.pid
+```
+
+### 4. Validate experiment compatibility
+
+```bash
+python -m src.modeling.run_experiment \
+  --prices data/raw/prices_VN.csv \
+  --daily-news data/processed/daily_news_prices.csv \
+  --prepare-only
+```
+
+### 5. Run the full hybrid experiment
+
+```bash
+python -m src.modeling.run_experiment \
+  --prices data/raw/prices_VN.csv \
+  --daily-news data/processed/daily_news_prices.csv \
+  --sentiment data/processed/article_sentiment_scores.csv
+```
+
+This writes:
+
+- `data/processed/hybrid_experiment_summary.json`
+
+and reports baseline vs hybrid forecast metrics.
+
+## Current Constraints
+
+- The repo now contains the modeling pipeline, but it still needs actual Vietnamese sentiment scores to answer the thesis question empirically.
+- The LSTM stage requires `tensorflow`, which is listed in `requirements.txt` but may not already exist in your active environment.
+- The current baseline is implemented as a reproducible Gaussian GARCH(1,1). If you want EGARCH, GJR-GARCH, or a formal model-selection sweep, extend `src/modeling/hybrid.py`.
+- The current processed artifact in `data/processed/articles_clean.csv` is CafeF-only in this checkout, so claims about full index-level information coverage should be framed carefully.
+
+## Data Contracts
+
+### `data/processed/articles_clean.csv`
+
+Full column contract:
+
+```
+url, source, category, title, date, published_at,
+origin_date, trading_date, has_timestamp, is_after_close,
+alignment_reason, calendar_gap_days, body_clean, body_len
+```
+
+The `published_at` column is always present; it is empty (`""`) for articles
+scraped before the intraday timestamp was added to the schema.
+The `alignment_reason` values are: `same_session`, `date_only_same_day`,
+`after_close_forward`, `date_only_forward`, `non_trading_forward`, `unmapped`.
+
+### `data/processed/daily_news_prices.csv`
+
+Full column contract:
+
+```
+date, close, open, high, low, volume, log_return,
+n_articles, n_categories, mean_body_len,
+after_close_share, non_trading_share, max_calendar_gap_days
+```
+
+All price trading days are preserved; zero-news days are zero-filled (no NaN).
+
+The `vnstock` source is intended as a ticker-news feed with session-alignable
+timestamps when the upstream provider exposes them. It should not be described
+as a full editorial corpus, and coverage may be truncated by provider
+pagination unless the configured page window is increased.
+
+### Article-level sentiment input
+
+Minimum columns:
+
+- `trading_date` or `date`
+- `sentiment_score`
+
+Optional:
+
+- `sentiment_label`
+
+### Experiment output fields
+
+The modeling frame includes:
+
+- `target_vol`
+- `target_next_vol`
+- `garch_forecast_vol`
+- `garch_std_resid`
+- `hybrid_residual_target`
+
+These are the core series used in the pure baseline and hybrid comparison.

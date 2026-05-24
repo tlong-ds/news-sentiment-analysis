@@ -1,0 +1,45 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Local environments and tool caches
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Scrape debug/research artifacts
+debug_*.py
+research_*.py
+*_debug.png
+debug_*.png
+*.html
+!tests/fixtures/*.html
+screenshots/
+tmp/*
+!tmp/.gitkeep
+
+# Generated news scrape outputs and ledgers
+data/raw/news_VN_*.csv
+data/raw/news_scrape_ledger.json
+data/raw/urls_*.txt
+!data/raw/.gitkeep
+
+# Large raw datasets
+data/fine-tunes/ViFiC-120M/*
+!data/fine-tunes/ViFiC-120M/.gitkeep
+data/fine-tunes/ViFiC-93M/*
+!data/fine-tunes/ViFiC-93M/.gitkeep
+data/archive.zip
+
+# Processed data, models, and logs (ignore contents but keep structure)
+data/processed/*
+!data/processed/.gitkeep
+data/models/*
+!data/models/.gitkeep
+logs/*
+!logs/.gitkeep
+
+.env
+.envrc

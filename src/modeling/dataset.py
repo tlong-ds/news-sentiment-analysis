@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+MACRO_CATEGORIES = {"Vĩ mô", "Kinh tế"}
+MARKET_CATEGORIES = {"Chứng khoán", "Thị trường"}
 
 
 class SentimentAggregationError(ValueError):
@@ -20,6 +22,23 @@ class SentimentAggregationError(ValueError):
 class SentimentFrameSpec:
     date_column: str
     is_article_level: bool
+
+
+def _resolve_category_frame(
+    sentiment_df: pd.DataFrame,
+    articles_clean_df: pd.DataFrame | None,
+) -> pd.DataFrame | None:
+    if "category" in sentiment_df.columns:
+        category_frame = sentiment_df[["date", "sentiment_score", "category"]].copy()
+        category_frame["category"] = category_frame["category"].fillna("").astype(str)
+        return category_frame
+
+    if articles_clean_df is None or "url" not in sentiment_df.columns:
+        return None
+
+    merged_df = sentiment_df.merge(articles_clean_df[["url", "category"]], on="url", how="left")
+    merged_df["category"] = merged_df["category"].fillna("").astype(str)
+    return merged_df[["date", "sentiment_score", "category"]]
 
 
 def _detect_sentiment_frame(df: pd.DataFrame) -> SentimentFrameSpec:
@@ -119,30 +138,24 @@ def aggregate_article_sentiment(
     daily["net_sentiment"] = daily["positive_share"] - daily["negative_share"]
 
     # Derived variable: sentiment_surprise = mean_sentiment - rolling_5day_mean_sentiment
-    daily["sentiment_surprise"] = (
-        daily["mean_sentiment"] -
-        daily["mean_sentiment"].rolling(window=5, min_periods=1).mean()
-    )
+    prior_mean = daily["mean_sentiment"].shift(1).rolling(window=5, min_periods=1).mean()
+    daily["sentiment_surprise"] = daily["mean_sentiment"] - prior_mean.fillna(0.0)
 
     # Derived variables: category-specific sentiment (macro & market)
-    if articles_clean_df is not None:
-        # Merge article categories into the scores frame using 'url'
-        merged_df = df.merge(articles_clean_df[["url", "category"]], on="url", how="left")
-        
-        # Macro sentiment: mean sentiment of categories 'Vĩ mô' and 'Kinh tế'
-        macro_mask = merged_df["category"].isin(["Vĩ mô", "Kinh tế"])
+    category_frame = _resolve_category_frame(df, articles_clean_df)
+    if category_frame is not None:
+        macro_mask = category_frame["category"].isin(MACRO_CATEGORIES)
         macro_daily = (
-            merged_df[macro_mask]
+            category_frame[macro_mask]
             .groupby("date")["sentiment_score"]
             .mean()
             .reset_index(name="macro_sentiment")
         )
         daily = daily.merge(macro_daily, on="date", how="left")
-        
-        # Market sentiment: mean sentiment of categories 'Chứng khoán' and 'Thị trường'
-        market_mask = merged_df["category"].isin(["Chứng khoán", "Thị trường"])
+
+        market_mask = category_frame["category"].isin(MARKET_CATEGORIES)
         market_daily = (
-            merged_df[market_mask]
+            category_frame[market_mask]
             .groupby("date")["sentiment_score"]
             .mean()
             .reset_index(name="market_sentiment")
@@ -155,6 +168,9 @@ def aggregate_article_sentiment(
         )
         daily["macro_sentiment"] = np.nan
         daily["market_sentiment"] = np.nan
+
+    daily["macro_sentiment_missing"] = daily["macro_sentiment"].isna().astype(int)
+    daily["market_sentiment_missing"] = daily["market_sentiment"].isna().astype(int)
 
     return daily.sort_values("date").reset_index(drop=True)
 
@@ -260,6 +276,7 @@ def build_model_frame(
     # Count of zero-news trading days is 4 out of 2498 (0.16%). Since this is
     # well under the 5% threshold, zero-imputation is a highly defensible
     # approximation for missing sentiment control features.
+    zero_news_mask = model_df["sentiment_volume"].fillna(0).eq(0) if "sentiment_volume" in model_df.columns else pd.Series(False, index=model_df.index)
     fill_defaults = {
         "n_articles": 0,
         "n_categories": 0,
@@ -272,16 +289,23 @@ def build_model_frame(
         "positive_share": 0.0,
         "net_sentiment": 0.0,
         "sentiment_surprise": 0.0,
-        "macro_sentiment": 0.0,
-        "market_sentiment": 0.0,
     }
     for column, default in fill_defaults.items():
         if column in model_df.columns:
             model_df[column] = model_df[column].fillna(default)
+
+    for column in ["macro_sentiment", "market_sentiment"]:
+        if column in model_df.columns:
+            model_df.loc[zero_news_mask, column] = model_df.loc[zero_news_mask, column].fillna(0.0)
+
+    for column in ["macro_sentiment_missing", "market_sentiment_missing"]:
+        if column in model_df.columns:
+            model_df[column] = model_df[column].fillna(1).astype(int)
 
     model_df["has_sentiment"] = (
         model_df["sentiment_volume"].gt(0).astype(int)
         if "sentiment_volume" in model_df.columns
         else 0
     )
+    model_df["has_news"] = model_df["has_sentiment"]
     return model_df.sort_values("date").reset_index(drop=True)

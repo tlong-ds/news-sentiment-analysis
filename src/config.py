@@ -7,11 +7,19 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 RAW_DATA_DIR = os.path.join(DATA_DIR, "raw")
 FINETUNES_DATA_DIR = os.path.join(DATA_DIR, "fine-tunes")
 PROCESSED_DATA_DIR = os.path.join(DATA_DIR, "processed")
+ANNOTATION_DATA_DIR = os.path.join(DATA_DIR, "annotation")
+CAFEF_DATA_DIR = os.path.join(DATA_DIR, "cafef")
+MODELS_DATA_DIR = os.path.join(DATA_DIR, "models")
+VIFIC_NORMALIZED_DIR = os.path.join(DATA_DIR, "vific")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(RAW_DATA_DIR, exist_ok=True)
 os.makedirs(FINETUNES_DATA_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
+os.makedirs(ANNOTATION_DATA_DIR, exist_ok=True)
+os.makedirs(CAFEF_DATA_DIR, exist_ok=True)
+os.makedirs(MODELS_DATA_DIR, exist_ok=True)
+os.makedirs(VIFIC_NORMALIZED_DIR, exist_ok=True)
 
 # --- Collection Configuration ---
 START_DATE = "2015-01-01"

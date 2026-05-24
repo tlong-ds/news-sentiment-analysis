@@ -44,12 +44,16 @@ def test_aggregate_article_sentiment_builds_daily_features():
         "sentiment_surprise",
         "macro_sentiment",
         "market_sentiment",
+        "macro_sentiment_missing",
+        "market_sentiment_missing",
     ]
     assert len(daily) == 2
     assert daily.loc[0, "sentiment_volume"] == 2
     assert daily.loc[0, "positive_share"] == 0.5
     assert daily.loc[0, "negative_share"] == 0.5
     assert daily.loc[0, "net_sentiment"] == 0.0
+    assert daily.loc[0, "sentiment_surprise"] == 0.2
+    assert daily.loc[1, "sentiment_surprise"] == -0.2
     assert daily.loc[1, "neutral_share"] == 1.0
     # On 2024-01-02, url2 is in "Vĩ mô". So macro_sentiment = -0.4
     assert daily.loc[0, "macro_sentiment"] == -0.4
@@ -59,6 +63,39 @@ def test_aggregate_article_sentiment_builds_daily_features():
     assert daily.loc[1, "macro_sentiment"] == 0.0
     # No market category on 2024-01-03, should be NaN (later zero-imputed in frame)
     assert pd.isna(daily.loc[1, "market_sentiment"])
+    assert daily.loc[0, "macro_sentiment_missing"] == 0
+    assert daily.loc[1, "market_sentiment_missing"] == 1
+
+
+def test_aggregate_article_sentiment_prefers_embedded_category():
+    df = pd.DataFrame(
+        [
+            {
+                "trading_date": "2024-01-02",
+                "sentiment_score": 0.4,
+                "sentiment_label": "positive",
+                "url": "url1",
+                "category": "Vĩ mô",
+            },
+            {
+                "trading_date": "2024-01-02",
+                "sentiment_score": -0.2,
+                "sentiment_label": "negative",
+                "url": "url2",
+                "category": "Chứng khoán",
+            },
+        ]
+    )
+    articles_clean = pd.DataFrame(
+        [
+            {"url": "url1", "category": "Sai category"},
+            {"url": "url2", "category": "Sai category"},
+        ]
+    )
+
+    daily = aggregate_article_sentiment(df, articles_clean_df=articles_clean)
+    assert daily.loc[0, "macro_sentiment"] == 0.4
+    assert daily.loc[0, "market_sentiment"] == -0.2
 
 
 def test_aggregate_article_sentiment_daily_no_drop():

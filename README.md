@@ -27,9 +27,24 @@ The implemented workflow is a two-stage hybrid design:
    - `data/processed/daily_news_prices.csv` — daily market + news-intensity frame
    - `data/processed/preprocessing_diagnostics.json` — machine-readable provenance summary
 
-### Stage 1: Sentiment inference
+### Stage 1: Sentiment pipeline
 
-The repo expects article-level sentiment scores with at least:
+The supervised sentiment path now runs as a dedicated pipeline:
+
+```bash
+cp .env.example .env
+python -m src.sentiment.prepare_inputs
+python -m src.sentiment.sample_vific
+python -m src.sentiment.annotate_vific --dry-run
+python -m src.sentiment.build_silver_labels
+python -m src.sentiment.train_classifier
+python -m src.sentiment.infer_cafef
+python -m src.sentiment.validate_inference
+```
+
+`ViFiC-93M` is often already word-segmented with underscore-joined Vietnamese terms. The prep step now treats ViFiC as pre-segmented by default and only runs `underthesea` on CafeF so both corpora match PhoBERT's expected tokenization scheme.
+
+The final article-level output consumed by modeling must include at least:
 
 - `trading_date` or `date`
 - `sentiment_score`
@@ -37,6 +52,13 @@ The repo expects article-level sentiment scores with at least:
 Optional:
 
 - `sentiment_label` with values like `positive`, `neutral`, `negative`
+- `category`, `prob_positive`, `prob_negative`, `prob_neutral`
+
+For live annotation runs, set Gemini keys in `.env`:
+
+```bash
+GEMINI_API_KEY=your_key
+```
 
 If you pass article-level scores into the modeling pipeline, the repo will aggregate them into daily features:
 
@@ -140,6 +162,12 @@ nohup python -m src.ingestion.pipeline \
   --resume \
   > logs/cafef_scrape_$(date +%Y%m%d_%H%M%S).log 2>&1 &
 echo $! > logs/cafef_scrape.pid
+```
+
+### 3. Optional MLM adaptation
+
+```bash
+python -m src.sentiment.pretrain_mlm
 ```
 
 ### 4. Validate experiment compatibility

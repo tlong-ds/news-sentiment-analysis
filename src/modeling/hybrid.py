@@ -315,8 +315,8 @@ def build_lstm_sequences(
     baseline_values: list[float] = []
     realized_values: list[float] = []
 
-    for end_idx in range(sequence_length, len(usable)):
-        window = usable.iloc[end_idx - sequence_length : end_idx]
+    for end_idx in range(sequence_length - 1, len(usable)):
+        window = usable.iloc[end_idx - sequence_length + 1 : end_idx + 1]
         target_row = usable.iloc[end_idx]
         x_values.append(window[feature_columns].to_numpy(dtype=float))
         y_values.append(float(target_row[target_column]))
@@ -567,4 +567,3 @@ def analyze_forecast_subperiods(
             }
             
     return analysis
-

@@ -13,3 +13,8 @@ vnstock
 scikit-learn
 tensorflow
 yfinance
+tf-keras
+transformers
+tqdm
+underthesea
+python-dotenv

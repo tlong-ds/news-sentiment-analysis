@@ -389,7 +389,6 @@ def export_preprocessed_outputs(
     diagnostics: dict[str, Any],
     *,
     out_dir: str | Path = "data/processed",
-    backup_path: str | Path | None = None,
 ) -> dict[str, Path]:
     """Write processed outputs and diagnostics to disk.
 
@@ -398,7 +397,6 @@ def export_preprocessed_outputs(
         daily_df: Daily DataFrame from :func:`build_preprocessed_outputs`.
         diagnostics: Diagnostics dict from :func:`build_preprocessed_outputs`.
         out_dir: Output directory (created if absent).
-        backup_path: Optional path of the raw backup file to record in diagnostics.
 
     Returns:
         Dict mapping output names to their absolute paths:
@@ -406,9 +404,6 @@ def export_preprocessed_outputs(
     """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-
-    if backup_path is not None:
-        diagnostics = {**diagnostics, "backup_file_path": str(Path(backup_path).resolve())}
 
     articles_path = out / "articles_clean.csv"
     daily_path = out / "daily_news_prices.csv"
@@ -465,11 +460,6 @@ def _parse_args() -> argparse.Namespace:
         default=100,
         help="Minimum article body length in characters (default: 100).",
     )
-    parser.add_argument(
-        "--backup-path",
-        default=None,
-        help="Path of the raw backup file to record in diagnostics (optional).",
-    )
     return parser.parse_args()
 
 
@@ -493,7 +483,6 @@ def main() -> None:
         daily_df,
         diagnostics,
         out_dir=args.out_dir,
-        backup_path=args.backup_path,
     )
 
     print(json.dumps({k: str(v) for k, v in paths.items()}, indent=2))

@@ -186,15 +186,11 @@ def test_export_preprocessed_outputs_writes_correct_files(tmp_path: Path):
     )
 
     out_dir = tmp_path / "processed"
-    backup_path = tmp_path / "news_VN_cafef_backup_20240101.csv"
-    backup_path.touch()  # Simulate backup existence.
-
     paths = export_preprocessed_outputs(
         articles_df,
         daily_df,
         diagnostics,
         out_dir=out_dir,
-        backup_path=backup_path,
     )
 
     # All 3 output files must exist.
@@ -209,11 +205,10 @@ def test_export_preprocessed_outputs_writes_correct_files(tmp_path: Path):
     assert set(ARTICLES_CLEAN_COLUMNS).issubset(set(articles_reload.columns))
     assert set(DAILY_NEWS_PRICES_COLUMNS).issubset(set(daily_reload.columns))
 
-    # Diagnostics JSON should record the backup path.
+    # Diagnostics JSON should preserve the raw-data-centric contract.
     import json
     diag = json.loads(paths["diagnostics"].read_text(encoding="utf-8"))
-    assert "backup_file_path" in diag
-    assert str(backup_path.resolve()) in diag["backup_file_path"]
+    assert "raw_news_path" in diag
 
     # daily_news_prices must preserve one row per trading day.
     assert len(daily_reload) == 10

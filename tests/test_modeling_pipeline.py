@@ -10,6 +10,7 @@ from src.modeling.hybrid import (
     validate_garch_fit,
     diebold_mariano_test,
     analyze_forecast_subperiods,
+    add_garch_features,
 )
 
 
@@ -58,6 +59,18 @@ def test_aggregate_article_sentiment_builds_daily_features():
     assert daily.loc[1, "macro_sentiment"] == 0.0
     # No market category on 2024-01-03, should be NaN (later zero-imputed in frame)
     assert pd.isna(daily.loc[1, "market_sentiment"])
+
+
+def test_aggregate_article_sentiment_daily_no_drop():
+    df = pd.DataFrame(
+        [
+            {"date": "2024-01-02", "mean_sentiment": 0.8, "sentiment_std": 0.1, "sentiment_volume": 5},
+            {"date": "2024-01-03", "mean_sentiment": -0.4, "sentiment_std": 0.2, "sentiment_volume": 10},
+        ]
+    )
+    daily = aggregate_article_sentiment(df)
+    assert "date" in daily.columns
+    assert len(daily) == 2
 
 
 def test_build_model_frame_merges_sentiment_and_news(tmp_path: Path):
@@ -140,6 +153,22 @@ def test_fit_garch11_baseline_returns_positive_variance():
     assert result.beta >= 0
     assert np.all(result.conditional_variance > 0)
     assert len(result.standardized_residuals) == len(returns)
+
+
+def test_add_garch_features_train_end():
+    dates = pd.date_range("2024-01-01", periods=100, freq="D")
+    returns = np.array([-0.01, 0.02, -0.015, 0.005, 0.011, -0.006, 0.018, -0.012] * 13, dtype=float)[:100]
+    df = pd.DataFrame({
+        "date": dates,
+        "log_return": returns,
+        "target_next_vol": np.abs(returns) * 1.1,
+    })
+    
+    df_leakfree = add_garch_features(df, train_end="2024-02-15")
+    assert "garch_conditional_vol" in df_leakfree.columns
+    assert "garch_forecast_vol" in df_leakfree.columns
+    assert "garch_std_resid" in df_leakfree.columns
+    assert not df_leakfree["garch_forecast_vol"].isna().all()
 
 
 def test_build_lstm_sequences_splits_temporally():

@@ -55,7 +55,9 @@ def aggregate_article_sentiment(
     if not spec.is_article_level:
         daily = sentiment_df.copy()
         daily["date"] = pd.to_datetime(daily[spec.date_column])
-        return daily.drop(columns=[spec.date_column], errors="ignore").sort_values("date")
+        if spec.date_column != "date":
+            daily = daily.drop(columns=[spec.date_column], errors="ignore")
+        return daily.sort_values("date")
 
     df = sentiment_df.copy()
     df["date"] = pd.to_datetime(df[spec.date_column])
@@ -240,7 +242,10 @@ def build_model_frame(
             articles_clean_df = pd.read_csv(articles_clean_path)
         else:
             # Fall back to default location relative to price_path
-            default_clean_path = Path(price_path).parent / "processed" / "articles_clean.csv"
+            price_parent = Path(price_path).parent
+            default_clean_path = price_parent.parent / "processed" / "articles_clean.csv"
+            if not default_clean_path.exists():
+                default_clean_path = Path("data/processed/articles_clean.csv")
             if default_clean_path.exists():
                 articles_clean_df = pd.read_csv(default_clean_path)
                 

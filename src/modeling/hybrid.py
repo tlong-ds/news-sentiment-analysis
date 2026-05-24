@@ -175,7 +175,7 @@ def fit_expanding_garch(
     reestimate_freq: int = 21,
     scale: float = 100.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Perform expanding-window GARCH(1,1) volatility forecasting.
+    """Perform expanding-window GARCH(1,1) volatility forecasting without look-ahead leakage.
 
     Re-estimates parameters omega, alpha, beta every reestimate_freq steps.
     """
@@ -193,13 +193,10 @@ def fit_expanding_garch(
 
     sample_var = float(np.var(y[:train_len], ddof=1))
     sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
-    for idx in range(1, train_len):
-        sigma2[idx] = omega + alpha * y[idx - 1] ** 2 + beta * sigma2[idx - 1]
-        forecast[idx - 1] = sigma2[idx]
-    forecast[train_len - 1] = omega + alpha * y[train_len - 1] ** 2 + beta * sigma2[train_len - 1]
+    forecast[0] = omega + alpha * y[0] ** 2 + beta * sigma2[0]
 
-    for idx in range(train_len, n):
-        if (idx - train_len) % reestimate_freq == 0:
+    for idx in range(1, n):
+        if idx >= train_len and (idx - train_len) % reestimate_freq == 0:
             try:
                 garch_temp = fit_garch11_baseline(series.iloc[:idx], scale=scale)
                 omega = garch_temp.omega
@@ -209,15 +206,14 @@ def fit_expanding_garch(
                 pass
 
         sigma2[idx] = omega + alpha * y[idx - 1] ** 2 + beta * sigma2[idx - 1]
-        forecast[idx] = omega + alpha * y[idx] ** 2 + beta * sigma2[idx]
+        if idx < n - 1:
+            forecast[idx] = omega + alpha * y[idx] ** 2 + beta * sigma2[idx]
+        else:
+            forecast[idx] = omega + (alpha + beta) * sigma2[idx]
 
     conditional_vol = np.sqrt(sigma2) / scale
-    forecast_vol = np.empty(n)
-    forecast_vol[0] = np.sqrt(max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))) / scale
-    for idx in range(1, n):
-        forecast_vol[idx] = np.sqrt(omega + alpha * y[idx - 1] ** 2 + beta * sigma2[idx - 1]) / scale
-
-    std_resid = (y / scale) / conditional_vol
+    forecast_vol = np.sqrt(forecast) / scale
+    std_resid = y / np.sqrt(sigma2)
     return conditional_vol, forecast_vol, std_resid
 
 
@@ -226,21 +222,66 @@ def add_garch_features(
     *,
     return_column: str = "log_return",
     target_column: str = "target_next_vol",
+    train_end: str | pd.Timestamp | None = None,
 ) -> pd.DataFrame:
-    """Append GARCH variance forecasts and residual targets to the model frame."""
-    garch = fit_garch11_baseline(model_df[return_column])
+    """Append GARCH variance forecasts and residual targets to the model frame.
+    
+    If train_end is specified, fits parameters omega, alpha, beta, and training
+    variance using only returns up to train_end to prevent look-ahead leakage,
+    then projects GARCH volatility forecasts and standardized residuals over
+    the entire dataset using those fitted parameters.
+    """
     df = model_df.copy()
-    fitted = pd.Series(index=df.index, dtype=float)
-    forecast = pd.Series(index=df.index, dtype=float)
-    zscore = pd.Series(index=df.index, dtype=float)
-
     valid_index = df[df[return_column].notna()].index
-    fitted.loc[valid_index] = np.sqrt(garch.conditional_variance)
-    forecast.loc[valid_index] = np.sqrt(garch.variance_forecast)
-    zscore.loc[valid_index] = garch.standardized_residuals
-
+    series = df.loc[valid_index, return_column]
+    
+    scale = 100.0
+    y = series.to_numpy(copy=True) * scale
+    
+    if train_end is not None:
+        # Identify the training subset using date comparison
+        train_mask = pd.to_datetime(df.loc[valid_index, "date"]) <= pd.Timestamp(train_end)
+        train_returns = series[train_mask]
+        
+        # Fit GARCH baseline on training return series only
+        garch_train = fit_garch11_baseline(train_returns, scale=scale)
+        omega = garch_train.omega
+        alpha = garch_train.alpha
+        beta = garch_train.beta
+        
+        # Project over the entire series using fitted parameters
+        sample_var = float(np.var(train_returns.to_numpy(copy=True) * scale, ddof=1))
+        
+        sigma2 = np.empty_like(y)
+        sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
+        for idx in range(1, len(y)):
+            sigma2[idx] = omega + alpha * y[idx - 1] ** 2 + beta * sigma2[idx - 1]
+            
+        forecast = np.empty_like(sigma2)
+        forecast[:-1] = omega + alpha * y[:-1] ** 2 + beta * sigma2[:-1]
+        forecast[-1] = omega + (alpha + beta) * sigma2[-1]
+        standardized = y / np.sqrt(sigma2)
+        
+        # Convert variance back to volatility scale
+        fitted_vol = np.sqrt(sigma2) / scale
+        forecast_vol = np.sqrt(forecast) / scale
+    else:
+        # Fallback: fit on the full sample (original behavior)
+        garch = fit_garch11_baseline(series, scale=scale)
+        fitted_vol = np.sqrt(garch.conditional_variance)
+        forecast_vol = np.sqrt(garch.variance_forecast)
+        standardized = garch.standardized_residuals
+        
+    fitted = pd.Series(index=df.index, dtype=float)
+    forecast_series = pd.Series(index=df.index, dtype=float)
+    zscore = pd.Series(index=df.index, dtype=float)
+    
+    fitted.loc[valid_index] = fitted_vol
+    forecast_series.loc[valid_index] = forecast_vol
+    zscore.loc[valid_index] = standardized
+    
     df["garch_conditional_vol"] = fitted
-    df["garch_forecast_vol"] = forecast
+    df["garch_forecast_vol"] = forecast_series
     df["garch_std_resid"] = zscore
     df["hybrid_residual_target"] = df[target_column] - df["garch_forecast_vol"]
     return df

@@ -58,7 +58,7 @@ def run_spec(
         sentiment_threshold=sentiment_threshold,
         target_type=target_type,
     )
-    model_df = add_garch_features(model_df)
+    model_df = add_garch_features(model_df, train_end=args.train_end)
 
     # 2. Select features
     if use_sentiment_features:

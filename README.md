@@ -13,12 +13,8 @@ The implemented workflow is a two-stage hybrid design:
 
 ### Stage 0: Build the data
 
-1. **Backup** the raw CafeF CSV before any overwrite:
-   ```bash
-   python -m src.data.backup_raw
-   ```
-2. **Scrape** Vietnamese business and market news over the 2015-2024 window (CafeF only).
-3. **Preprocess** using the modular pipeline — cleans bodies, aligns to trading day (with
+1. **Scrape** Vietnamese business and market news over the 2015-2024 window (CafeF only).
+2. **Preprocess** using the modular pipeline — cleans bodies, aligns to trading day (with
    HoSE 14:45 close cutoff when `published_at` is available), aggregates daily controls,
    and merges with the full price calendar:
    ```bash
@@ -26,7 +22,7 @@ The implemented workflow is a two-stage hybrid design:
         --raw-news data/raw/news_VN_cafef.csv \
         --prices data/raw/prices_VN.csv
    ```
-4. **Export:**
+3. **Export:**
    - `data/processed/articles_clean.csv` — article-level with alignment diagnostics
    - `data/processed/daily_news_prices.csv` — daily market + news-intensity frame
    - `data/processed/preprocessing_diagnostics.json` — machine-readable provenance summary
@@ -78,7 +74,6 @@ The experiment target is next-day volatility, with the hybrid model learning:
 │   │   ├── hybrid.py               # GARCH baseline + LSTM sequence prep
 │   │   └── run_experiment.py       # Reproducible CLI runner
 │   ├── data/
-│   │   └── backup_raw.py           # Raw CSV backup before pipeline runs
 │   ├── utils/
 │   └── config.py
 ├── notebooks/
@@ -87,7 +82,6 @@ The experiment target is next-day volatility, with the hybrid model learning:
 │   ├── raw/                        # Scraped files from news and vnstock index prices
 │   │   ├── news_VN_cafef.csv       # Raw CafeF corpus (primary)
 │   │   ├── news_VN_vnstock.csv
-│   │   ├── news_VN_cafef_backup_*.csv
 │   │   ├── news_scrape_ledger.json
 │   │   └── prices_VN.csv
 │   ├── fine-tunes/                 # ViFiC text data for PhoBERT domain adaptation
@@ -114,13 +108,7 @@ pip install -r requirements.txt
 
 ## Main Commands
 
-### 1. Back up raw data (always run first)
-
-```bash
-python -m src.data.backup_raw
-```
-
-### 2. Rebuild cleaned datasets
+### 1. Rebuild cleaned datasets
 
 **Via CLI (recommended for reproducibility):**
 
@@ -142,7 +130,7 @@ quote history for `VNINDEX`:
 python -m src.data.fetch_prices_vnstock --start 2015-01-01 --end 2024-12-31
 ```
 
-### 3. Run the full CafeF scrape (background)
+### 2. Run the full CafeF scrape (background)
 
 ```bash
 nohup python -m src.ingestion.pipeline \

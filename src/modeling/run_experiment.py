@@ -60,7 +60,7 @@ def main() -> None:
         sentiment_path=args.sentiment,
         articles_clean_path=args.articles_clean,
     )
-    model_df = add_garch_features(model_df)
+    model_df = add_garch_features(model_df, train_end=args.train_end)
 
     feature_columns = [
         "garch_std_resid",
@@ -93,8 +93,9 @@ def main() -> None:
     baseline = sequences["baseline_test"]
     actual = sequences["realized_test"]
 
-    # Fit baseline GARCH directly to compute diagnostic validation
-    garch_result = fit_garch11_baseline(model_df["log_return"])
+    # Fit baseline GARCH directly on training set to compute diagnostic validation
+    train_returns = model_df[pd.to_datetime(model_df["date"]) <= pd.Timestamp(args.train_end)]["log_return"]
+    garch_result = fit_garch11_baseline(train_returns)
     garch_diagnostics = validate_garch_fit(garch_result)
 
     summary = {

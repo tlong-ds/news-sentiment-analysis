@@ -21,25 +21,45 @@ tmp/*
 !tmp/.gitkeep
 
 # Generated news scrape outputs and ledgers
-data/raw/news_VN_*.csv
-data/raw/news_scrape_ledger.json
-data/raw/urls_*.txt
-!data/raw/.gitkeep
+data/main/raw/news_VN_*.csv
+data/main/raw/news_scrape_ledger.json
+data/main/raw/urls_*.txt
+!data/main/raw/.gitkeep
 
 # Large raw datasets
-data/fine-tunes/ViFiC-120M/*
-!data/fine-tunes/ViFiC-120M/.gitkeep
-data/fine-tunes/ViFiC-93M/*
-!data/fine-tunes/ViFiC-93M/.gitkeep
+data/vific/fine-tunes/ViFiC-120M/*
+!data/vific/fine-tunes/ViFiC-120M/.gitkeep
+data/vific/fine-tunes/ViFiC-93M/*
+!data/vific/fine-tunes/ViFiC-93M/.gitkeep
 data/archive.zip
 
 # Processed data, models, and logs (ignore contents but keep structure)
-data/processed/*
-!data/processed/.gitkeep
-data/models/*
-!data/models/.gitkeep
+data/main/processed/*
+!data/main/processed/.gitkeep
+data/main/cafef/*
+!data/main/cafef/.gitkeep
+data/vific/processed/*
+!data/vific/processed/.gitkeep
+data/vific/annotation/*
+!data/vific/annotation/.gitkeep
+models/*
+!models/.gitkeep
 logs/*
 !logs/.gitkeep
 
+
+# Report Files
+!report/.gitkeep
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.blg
+report/*.bbl
+report/*.pdf
+
+
+# Environment Files
 .env
 .envrc
+

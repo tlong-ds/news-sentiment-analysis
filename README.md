@@ -23,9 +23,9 @@ The implemented workflow is a two-stage hybrid design:
         --prices data/raw/prices_VN.csv
    ```
 3. **Export:**
-   - `data/processed/articles_clean.csv` — article-level with alignment diagnostics
-   - `data/processed/daily_news_prices.csv` — daily market + news-intensity frame
-   - `data/processed/preprocessing_diagnostics.json` — machine-readable provenance summary
+   - `data/main/processed/articles_clean.parquet` — article-level with alignment diagnostics
+   - `data/main/processed/daily_news_prices.parquet` — daily market + news-intensity frame
+   - `data/main/processed/preprocessing_diagnostics.json` — machine-readable provenance summary
 
 ### Stage 1: Sentiment pipeline
 
@@ -110,8 +110,8 @@ The experiment target is next-day volatility, with the hybrid model learning:
 │   │   ├── ViFiC-93M/
 │   │   └── ViFiC-120M/
 │   └── processed/                  # Cleaned, tokenized, and aligned datasets
-│       ├── articles_clean.csv
-│       ├── daily_news_prices.csv
+│       ├── articles_clean.parquet
+│       ├── daily_news_prices.parquet
 │       └── preprocessing_diagnostics.json
 └── tests/
     ├── test_preprocessing_alignment.py
@@ -138,7 +138,7 @@ pip install -r requirements.txt
 python -m src.preprocessing.pipeline \
   --raw-news data/raw/news_VN_cafef.csv \
   --prices data/raw/prices_VN.csv \
-  --out-dir data/processed
+  --out-dir data/main/processed
 ```
 
 **Via notebook (for interactive inspection):**
@@ -175,7 +175,7 @@ python -m src.sentiment.pretrain_mlm
 ```bash
 python -m src.modeling.run_experiment \
   --prices data/raw/prices_VN.csv \
-  --daily-news data/processed/daily_news_prices.csv \
+  --daily-news data/main/processed/daily_news_prices.parquet \
   --prepare-only
 ```
 
@@ -184,13 +184,13 @@ python -m src.modeling.run_experiment \
 ```bash
 python -m src.modeling.run_experiment \
   --prices data/raw/prices_VN.csv \
-  --daily-news data/processed/daily_news_prices.csv \
-  --sentiment data/processed/article_sentiment_scores.csv
+  --daily-news data/main/processed/daily_news_prices.parquet \
+  --sentiment data/main/processed/article_sentiment_scores.parquet
 ```
 
 This writes:
 
-- `data/processed/hybrid_experiment_summary.json`
+- `data/main/processed/hybrid_experiment_summary.json`
 
 and reports baseline vs hybrid forecast metrics.
 
@@ -199,11 +199,11 @@ and reports baseline vs hybrid forecast metrics.
 - The repo now contains the modeling pipeline, but it still needs actual Vietnamese sentiment scores to answer the thesis question empirically.
 - The LSTM stage requires `tensorflow`, which is listed in `requirements.txt` but may not already exist in your active environment.
 - The current baseline is implemented as a reproducible Gaussian GARCH(1,1). If you want EGARCH, GJR-GARCH, or a formal model-selection sweep, extend `src/modeling/hybrid.py`.
-- The current processed artifact in `data/processed/articles_clean.csv` is CafeF-only in this checkout, so claims about full index-level information coverage should be framed carefully.
+- The current processed artifact in `data/main/processed/articles_clean.parquet` is CafeF-only in this checkout, so claims about full index-level information coverage should be framed carefully.
 
 ## Data Contracts
 
-### `data/processed/articles_clean.csv`
+### `data/main/processed/articles_clean.parquet`
 
 Full column contract:
 
@@ -218,7 +218,7 @@ scraped before the intraday timestamp was added to the schema.
 The `alignment_reason` values are: `same_session`, `date_only_same_day`,
 `after_close_forward`, `date_only_forward`, `non_trading_forward`, `unmapped`.
 
-### `data/processed/daily_news_prices.csv`
+### `data/main/processed/daily_news_prices.parquet`
 
 Full column contract:
 

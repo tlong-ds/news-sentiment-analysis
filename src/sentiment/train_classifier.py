@@ -174,19 +174,42 @@ def train_classifier(
     prepared = _prepare_labels(labeled_df)
     output_path = ensure_dir(output_dir)
 
+    # Detect and configure GPUs. If multiple GPUs are available, use MirroredStrategy.
+    gpus = tf.config.list_physical_devices("GPU")
+    if gpus:
+        logger.info("Detected GPU devices: %s", [g.name for g in gpus])
+        for g in gpus:
+            try:
+                tf.config.experimental.set_memory_growth(g, True)
+            except Exception:
+                logger.debug("Could not set memory growth for %s", g)
+        if len(gpus) > 1:
+            logger.info(
+                "Multiple GPUs detected, using tf.distribute.MirroredStrategy()."
+            )
+            strategy = tf.distribute.MirroredStrategy()
+        else:
+            strategy = tf.distribute.get_strategy()
+    else:
+        logger.info("No GPUs detected; using default TF strategy (CPU).")
+        strategy = tf.distribute.get_strategy()
+
     tokenizer = AutoTokenizer.from_pretrained(base_model)
-    model = TFAutoModelForSequenceClassification.from_pretrained(
-        base_model,
-        num_labels=3,
-        id2label=ID_TO_LABEL,
-        label2id=LABEL_TO_ID,
-        ignore_mismatched_sizes=True,
-    )
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="accuracy")],
-    )
+
+    # Create and compile the model inside the strategy scope so variables are placed correctly
+    with strategy.scope():
+        model = TFAutoModelForSequenceClassification.from_pretrained(
+            base_model,
+            num_labels=3,
+            id2label=ID_TO_LABEL,
+            label2id=LABEL_TO_ID,
+            ignore_mismatched_sizes=True,
+        )
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+            loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+            metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="accuracy")],
+        )
 
     train_df = prepared[prepared["split"] == "train"].copy().reset_index(drop=True)
     val_df = prepared[prepared["split"] == "val"].copy().reset_index(drop=True)

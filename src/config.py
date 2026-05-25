@@ -74,9 +74,16 @@ VNSTOCK_MAX_PAGES = 10
 # Place the extracted files under data/fine-tunes/
 VIFIC_DATA_DIR = os.path.join(FINETUNES_DATA_DIR)
 
+# --- VnCoreNLP Configuration ---
+VNCORENLP_JAR_PATH = os.environ.get(
+    "VNCORENLP_JAR_PATH",
+    os.path.join(BASE_DIR, "vncorenlp", "VnCoreNLP-1.1.1.jar")
+)
+
 # --- Output files ---
 SOURCE_OUTPUTS = {
     "cafef": "news_VN_cafef.csv",
     "vnstock": "news_VN_vnstock.csv",
     "vific": "news_VN_vific.csv",
 }
+

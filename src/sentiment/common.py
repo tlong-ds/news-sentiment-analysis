@@ -15,6 +15,34 @@ try:
 except ImportError:  # pragma: no cover - fallback used when dependency is absent
     underthesea = None
 
+try:
+    from vncorenlp import VnCoreNLP
+except ImportError:
+    VnCoreNLP = None
+
+from src.config import VNCORENLP_JAR_PATH
+
+_vncorenlp_annotator = None
+
+
+def get_vncorenlp_annotator() -> VnCoreNLP | None:
+    global _vncorenlp_annotator
+    if _vncorenlp_annotator is not None:
+        return _vncorenlp_annotator
+    if VnCoreNLP is None:
+        return None
+    import os
+    jar_path = VNCORENLP_JAR_PATH
+    if os.path.exists(jar_path):
+        try:
+            _vncorenlp_annotator = VnCoreNLP(jar_path, annotators="wseg")
+            return _vncorenlp_annotator
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Failed to initialize VnCoreNLP, falling back to underthesea: %s", e)
+            return None
+    return None
+
 
 SENTIMENT_LABELS = ["negative", "neutral", "positive"]
 LABEL_TO_ID = {label: idx for idx, label in enumerate(SENTIMENT_LABELS)}
@@ -37,13 +65,27 @@ class PreparedInputRow:
 
 
 def segment_text(text: str) -> str:
-    """Word-segment text for PhoBERT, falling back to whitespace normalization."""
+    """Word-segment text for PhoBERT, falling back to underthesea or whitespace normalization."""
     normalized = " ".join(str(text or "").split())
     if not normalized:
         return ""
+    
+    annotator = get_vncorenlp_annotator()
+    if annotator is not None:
+        try:
+            sentences = annotator.tokenize(normalized)
+            words = []
+            for sentence in sentences:
+                words.extend(sentence)
+            return " ".join(words)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("VnCoreNLP tokenization failed, falling back: %s", e)
+
     if underthesea is None:
         return normalized
     return underthesea.word_tokenize(normalized, format="text")
+
 
 
 def normalize_presegmented_text(text: str) -> str:

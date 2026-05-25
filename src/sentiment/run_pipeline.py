@@ -82,6 +82,7 @@ def parse_args() -> argparse.Namespace:
         "--bootstrap-fallback-models", nargs="*", default=["nemotron-3-nano:4b"]
     )
     parser.add_argument("--bootstrap-confidence-threshold", type=float, default=0.8)
+    parser.add_argument("--bootstrap-concurrency", type=int, default=5)
     parser.add_argument("--annotation-sample-size", type=int, default=6000)
     add_tracking_arguments(parser, include_registry=True)
     return parser.parse_args()
@@ -215,6 +216,8 @@ def resolve_labeled_corpus(
             str(args.bootstrap_confidence_threshold),
             "--fallback-models",
             *args.bootstrap_fallback_models,
+            "--concurrency",
+            str(args.bootstrap_concurrency),
         ]
         run_command(
             bootstrap_command,

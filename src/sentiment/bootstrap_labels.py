@@ -6,6 +6,8 @@ import argparse
 import json
 import logging
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -63,6 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int)
     parser.add_argument("--confidence-threshold", type=float, default=0.8)
     parser.add_argument("--report-file")
+    parser.add_argument("--concurrency", type=int, default=5)
     return parser.parse_args()
 
 
@@ -105,15 +108,53 @@ def parse_bootstrap_response(raw_text: str) -> dict[str, Any]:
     }
 
 
+_session = None
+
+
+def _get_session() -> requests.Session:
+    """Return a requests.Session configured with a connection pool suitable for concurrency.
+
+    The pool size can be tuned via the HTTP_POOL_SIZE environment variable.
+    """
+    global _session
+    if _session is None:
+        _session = requests.Session()
+        # Configure connection pooling for concurrent threads to reuse connections.
+        try:
+            pool_size = int(os.environ.get("HTTP_POOL_SIZE", "50"))
+        except Exception:
+            pool_size = 50
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=pool_size, pool_maxsize=pool_size
+        )
+        _session.mount("https://", adapter)
+        _session.mount("http://", adapter)
+    return _session
+
+
 def _call_ollama(prompt: str, model_name: str) -> str:
-    response = requests.post(
-        "http://127.0.0.1:11434/api/generate",
-        json={"model": model_name, "prompt": prompt, "stream": False, "format": "json"},
-        timeout=180,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    return str(payload.get("response", "")).strip()
+    max_retries = 3
+    backoff = 1.0
+    for attempt in range(max_retries):
+        try:
+            response = _get_session().post(
+                "http://127.0.0.1:11434/api/generate",
+                json={
+                    "model": model_name,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                },
+                timeout=180,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            return str(payload.get("response", "")).strip()
+        except Exception:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(backoff)
+            backoff *= 2.0
 
 
 def _call_gemini(prompt: str, model_name: str) -> str:
@@ -121,24 +162,40 @@ def _call_gemini(prompt: str, model_name: str) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is required for Gemini bootstrap fallback.")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-    response = requests.post(
-        url,
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"responseMimeType": "application/json"},
-        },
-        timeout=180,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    candidates = payload.get("candidates", [])
-    if not candidates:
-        raise ValueError("Gemini returned no candidates.")
-    parts = candidates[0].get("content", {}).get("parts", [])
-    text = "".join(str(part.get("text", "")) for part in parts).strip()
-    if not text:
-        raise ValueError("Gemini returned an empty text response.")
-    return text
+
+    max_retries = 5
+    backoff = 2.0
+    for attempt in range(max_retries):
+        try:
+            response = _get_session().post(
+                url,
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"responseMimeType": "application/json"},
+                },
+                timeout=180,
+            )
+            if response.status_code == 429:
+                if attempt == max_retries - 1:
+                    response.raise_for_status()
+                time.sleep(backoff)
+                backoff *= 2.0
+                continue
+            response.raise_for_status()
+            payload = response.json()
+            candidates = payload.get("candidates", [])
+            if not candidates:
+                raise ValueError("Gemini returned no candidates.")
+            parts = candidates[0].get("content", {}).get("parts", [])
+            text = "".join(str(part.get("text", "")) for part in parts).strip()
+            if not text:
+                raise ValueError("Gemini returned an empty text response.")
+            return text
+        except Exception:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(backoff)
+            backoff *= 2.0
 
 
 def call_model(prompt: str, spec: ModelSpec) -> str:
@@ -169,15 +226,17 @@ def bootstrap_labels_frame(
     model_specs: list[ModelSpec],
     prompt_version: str,
     model_runner: Any = call_model,
+    concurrency: int = 5,
 ) -> tuple[pd.DataFrame, list[dict[str, Any]]]:
     validate_required_columns(
         df,
         {"article_id", "source", "category", "published_at", "title", "body_text"},
         dataset_name="bootstrap input",
     )
-    rows: list[dict[str, Any]] = []
-    raw_records: list[dict[str, Any]] = []
-    for _, row in df.iterrows():
+    rows: list[dict[str, Any]] = [None] * len(df)
+    raw_records: list[dict[str, Any]] = [None] * len(df)
+
+    def process_row(index: int, row: pd.Series):
         prompt = build_prompt(row)
         last_error = None
         for spec in model_specs:
@@ -185,7 +244,8 @@ def bootstrap_labels_frame(
             try:
                 raw_text = str(model_runner(prompt, spec))
                 parsed = parse_bootstrap_response(raw_text)
-                rows.append(
+                return (
+                    index,
                     {
                         "article_id": str(row["article_id"]),
                         "label": parsed["label"],
@@ -193,9 +253,7 @@ def bootstrap_labels_frame(
                         "rationale": parsed["rationale"],
                         "model_name": spec.model_name,
                         "prompt_version": prompt_version,
-                    }
-                )
-                raw_records.append(
+                    },
                     {
                         "article_id": str(row["article_id"]),
                         "backend": spec.backend,
@@ -203,28 +261,52 @@ def bootstrap_labels_frame(
                         "prompt_version": prompt_version,
                         "response_text": raw_text,
                         "status": "ok",
-                    }
+                    },
                 )
-                break
-            except (
-                Exception
-            ) as exc:  # pragma: no cover - exercised through fallback behavior
+            except Exception as exc:
                 last_error = exc
-                raw_records.append(
-                    {
-                        "article_id": str(row["article_id"]),
-                        "backend": spec.backend,
-                        "model_name": spec.model_name,
-                        "prompt_version": prompt_version,
-                        "response_text": raw_text,
-                        "status": "error",
-                        "error": str(exc),
-                    }
-                )
-        else:
-            raise RuntimeError(
-                f"Bootstrap labeling failed for article_id={row['article_id']}: {last_error}"
-            ) from last_error
+                # Record error details, try next spec if available
+                pass
+        raise RuntimeError(
+            f"Bootstrap labeling failed for article_id={row['article_id']}: {last_error}"
+        ) from last_error
+
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        # Submit tasks using DataFrame.iterrows() which returns (index, Series).
+        futures: dict = {}
+        for pos, (_, row) in enumerate(df.iterrows()):
+            futures[executor.submit(process_row, pos, row)] = pos
+
+        for future in as_completed(futures):
+            pos = futures[future]
+            try:
+                idx, res_row, raw_rec = future.result()
+                rows[idx] = res_row
+                raw_records[idx] = raw_rec
+            except Exception as e:
+                # Log and record a structured error result so downstream steps can inspect failures.
+                logger.exception("Bootstrap labeling failed for row %s: %s", pos, e)
+                try:
+                    article_id = str(df.iloc[pos]["article_id"])
+                except Exception:
+                    article_id = str(pos)
+                rows[pos] = {
+                    "article_id": article_id,
+                    "label": None,
+                    "confidence": 0.0,
+                    "rationale": "",
+                    "model_name": None,
+                    "prompt_version": prompt_version,
+                }
+                raw_records[pos] = {
+                    "article_id": article_id,
+                    "backend": None,
+                    "model_name": None,
+                    "prompt_version": prompt_version,
+                    "response_text": str(e),
+                    "status": "error",
+                }
+
     return pd.DataFrame(rows), raw_records
 
 
@@ -259,6 +341,7 @@ def main() -> None:
         input_df,
         model_specs=specs,
         prompt_version=args.prompt_version,
+        concurrency=args.concurrency,
     )
     output_path = ensure_parent_dir(args.output_file)
     labels_df.to_parquet(output_path, index=False)

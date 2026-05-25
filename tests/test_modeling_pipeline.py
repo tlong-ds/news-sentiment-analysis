@@ -144,14 +144,14 @@ def test_build_model_frame_merges_sentiment_and_news(tmp_path: Path):
     )
 
     prices_path = tmp_path / "prices.csv"
-    news_path = tmp_path / "news.csv"
-    sentiment_path = tmp_path / "sentiment.csv"
-    articles_clean_path = tmp_path / "articles_clean.csv"
+    news_path = tmp_path / "news.parquet"
+    sentiment_path = tmp_path / "sentiment.parquet"
+    articles_clean_path = tmp_path / "articles_clean.parquet"
     
     prices.to_csv(prices_path, index=False)
-    news.to_csv(news_path, index=False)
-    sentiment.to_csv(sentiment_path, index=False)
-    articles_clean.to_csv(articles_clean_path, index=False)
+    news.to_parquet(news_path, index=False)
+    sentiment.to_parquet(sentiment_path, index=False)
+    articles_clean.to_parquet(articles_clean_path, index=False)
 
     frame = build_model_frame(
         prices_path,
@@ -175,6 +175,61 @@ def test_build_model_frame_merges_sentiment_and_news(tmp_path: Path):
     assert frame.loc[2, "has_sentiment"] == 0
     assert frame.loc[2, "macro_sentiment"] == 0.0
     assert frame.loc[2, "market_sentiment"] == 0.0
+
+
+def test_build_model_frame_accepts_legacy_csv_processed_inputs(tmp_path: Path):
+    prices = pd.DataFrame(
+        {
+            "Date": ["2024-01-02", "2024-01-03"],
+            "TRDPRC_1": [100.0, 101.0],
+            "OPEN_PRC": [99.5, 100.0],
+            "HIGH_1": [101.0, 102.0],
+            "LOW_1": [99.0, 99.8],
+            "ACVOL_UNS": [1000, 1200],
+        }
+    )
+    news = pd.DataFrame(
+        {
+            "date": ["2024-01-02", "2024-01-03"],
+            "n_articles": [2, 0],
+            "n_categories": [1, 0],
+            "mean_body_len": [400.0, 0.0],
+        }
+    )
+    sentiment = pd.DataFrame(
+        [
+            {"trading_date": "2024-01-02", "sentiment_score": 0.2, "url": "url1"},
+            {"trading_date": "2024-01-02", "sentiment_score": -0.1, "url": "url2"},
+        ]
+    )
+    articles_clean = pd.DataFrame(
+        {
+            "url": ["url1", "url2"],
+            "category": ["Vĩ mô", "Chứng khoán"],
+        }
+    )
+
+    prices_path = tmp_path / "prices.csv"
+    news_path = tmp_path / "daily_news_prices.csv"
+    sentiment_path = tmp_path / "article_sentiment_scores.csv"
+    articles_clean_path = tmp_path / "articles_clean.csv"
+
+    prices.to_csv(prices_path, index=False)
+    news.to_csv(news_path, index=False)
+    sentiment.to_csv(sentiment_path, index=False)
+    articles_clean.to_csv(articles_clean_path, index=False)
+
+    frame = build_model_frame(
+        prices_path,
+        daily_news_path=news_path,
+        sentiment_path=sentiment_path,
+        articles_clean_path=articles_clean_path,
+    )
+
+    assert frame.loc[0, "n_articles"] == 2
+    assert frame.loc[0, "mean_sentiment"] == 0.05
+    assert frame.loc[0, "macro_sentiment"] == 0.2
+    assert frame.loc[0, "market_sentiment"] == -0.1
 
 
 def test_fit_garch11_baseline_returns_positive_variance():

@@ -15,14 +15,14 @@ workflow.  It owns:
 Public API
 ----------
 - :func:`build_preprocessed_outputs` — main builder, returns DataFrames + diagnostics.
-- :func:`export_preprocessed_outputs` — writes CSVs and the diagnostics JSON.
+- :func:`export_preprocessed_outputs` — writes Parquet tables and the diagnostics JSON.
 
 CLI usage::
 
     python -m src.preprocessing.pipeline \\
         --raw-news data/raw/news_VN_cafef.csv \\
         --prices data/raw/prices_VN.csv \\
-        --out-dir data/processed
+        --out-dir data/main/processed
 
 """
 
@@ -57,7 +57,7 @@ csv.field_size_limit(2_147_483_647)
 # Constants
 # ---------------------------------------------------------------------------
 
-#: Columns produced in articles_clean.csv.
+#: Columns produced in articles_clean.parquet.
 ARTICLES_CLEAN_COLUMNS: list[str] = [
     "url",
     "source",
@@ -75,7 +75,7 @@ ARTICLES_CLEAN_COLUMNS: list[str] = [
     "body_len",
 ]
 
-#: Columns produced in daily_news_prices.csv.
+#: Columns produced in daily_news_prices.parquet.
 DAILY_NEWS_PRICES_COLUMNS: list[str] = [
     "date",
     "close",
@@ -275,7 +275,7 @@ def build_preprocessed_outputs(
         )
     aligned = aligned.dropna(subset=["trading_date"])
 
-    # Normalise trading_date type for consistent CSV serialisation.
+    # Normalise trading_date type for consistent Parquet serialisation.
     aligned["trading_date"] = pd.to_datetime(aligned["trading_date"]).dt.date
 
     # Build articles_df with the contracted column set.
@@ -388,7 +388,7 @@ def export_preprocessed_outputs(
     daily_df: pd.DataFrame,
     diagnostics: dict[str, Any],
     *,
-    out_dir: str | Path = "data/processed",
+    out_dir: str | Path = "data/main/processed",
 ) -> dict[str, Path]:
     """Write processed outputs and diagnostics to disk.
 
@@ -405,15 +405,15 @@ def export_preprocessed_outputs(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    articles_path = out / "articles_clean.csv"
-    daily_path = out / "daily_news_prices.csv"
+    articles_path = out / "articles_clean.parquet"
+    daily_path = out / "daily_news_prices.parquet"
     diagnostics_path = out / "preprocessing_diagnostics.json"
 
-    logger.info("Writing articles_clean.csv (%d rows) …", len(articles_df))
-    articles_df.to_csv(articles_path, index=False, encoding="utf-8")
+    logger.info("Writing articles_clean.parquet (%d rows) …", len(articles_df))
+    articles_df.to_parquet(articles_path, index=False)
 
-    logger.info("Writing daily_news_prices.csv (%d rows) …", len(daily_df))
-    daily_df.to_csv(daily_path, index=False, encoding="utf-8")
+    logger.info("Writing daily_news_prices.parquet (%d rows) …", len(daily_df))
+    daily_df.to_parquet(daily_path, index=False)
 
     logger.info("Writing preprocessing_diagnostics.json …")
     diagnostics_path.write_text(
@@ -441,19 +441,20 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--raw-news",
-        default="data/raw/news_VN_cafef.csv",
-        help="Path to raw CafeF news CSV (default: data/raw/news_VN_cafef.csv).",
+        default="data/main/raw/news_VN_cafef.csv",
+        help="Path to raw CafeF news CSV (default: data/main/raw/news_VN_cafef.csv).",
     )
     parser.add_argument(
         "--prices",
-        default="data/raw/prices_VN.csv",
-        help="Path to VN-Index price CSV (default: data/raw/prices_VN.csv).",
+        default="data/main/raw/prices_VN.csv",
+        help="Path to VN-Index price CSV (default: data/main/raw/prices_VN.csv).",
     )
     parser.add_argument(
         "--out-dir",
-        default="data/processed",
-        help="Output directory for processed files (default: data/processed).",
+        default="data/main/processed",
+        help="Output directory for processed files (default: data/main/processed).",
     )
+
     parser.add_argument(
         "--min-body-len",
         type=int,

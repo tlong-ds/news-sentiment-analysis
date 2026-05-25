@@ -4,22 +4,30 @@ from pathlib import Path
 # --- Project Paths ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
-RAW_DATA_DIR = os.path.join(DATA_DIR, "raw")
-FINETUNES_DATA_DIR = os.path.join(DATA_DIR, "fine-tunes")
-PROCESSED_DATA_DIR = os.path.join(DATA_DIR, "processed")
-ANNOTATION_DATA_DIR = os.path.join(DATA_DIR, "annotation")
-CAFEF_DATA_DIR = os.path.join(DATA_DIR, "cafef")
-MODELS_DATA_DIR = os.path.join(DATA_DIR, "models")
-VIFIC_NORMALIZED_DIR = os.path.join(DATA_DIR, "vific")
+
+# Main work directory (CafeF and VN-Index prices)
+MAIN_DATA_DIR = os.path.join(DATA_DIR, "main")
+RAW_DATA_DIR = os.path.join(MAIN_DATA_DIR, "raw")
+PROCESSED_DATA_DIR = os.path.join(MAIN_DATA_DIR, "processed")
+CAFEF_DATA_DIR = os.path.join(MAIN_DATA_DIR, "cafef")
+MODELS_DATA_DIR = os.path.join(BASE_DIR, "models")
+
+
+# ViFiC specific directory (unsupervised domain pretraining, dual-LLM annotation)
+VIFIC_DATA_DIR = os.path.join(DATA_DIR, "vific")
+FINETUNES_DATA_DIR = os.path.join(VIFIC_DATA_DIR, "fine-tunes")
+VIFIC_NORMALIZED_DIR = os.path.join(VIFIC_DATA_DIR, "processed")
+ANNOTATION_DATA_DIR = os.path.join(VIFIC_DATA_DIR, "annotation")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(RAW_DATA_DIR, exist_ok=True)
-os.makedirs(FINETUNES_DATA_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
-os.makedirs(ANNOTATION_DATA_DIR, exist_ok=True)
 os.makedirs(CAFEF_DATA_DIR, exist_ok=True)
 os.makedirs(MODELS_DATA_DIR, exist_ok=True)
+os.makedirs(FINETUNES_DATA_DIR, exist_ok=True)
 os.makedirs(VIFIC_NORMALIZED_DIR, exist_ok=True)
+os.makedirs(ANNOTATION_DATA_DIR, exist_ok=True)
+
 
 # --- Collection Configuration ---
 START_DATE = "2015-01-01"
@@ -84,6 +92,6 @@ VNCORENLP_JAR_PATH = os.environ.get(
 SOURCE_OUTPUTS = {
     "cafef": "news_VN_cafef.csv",
     "vnstock": "news_VN_vnstock.csv",
-    "vific": "news_VN_vific.csv",
 }
+
 

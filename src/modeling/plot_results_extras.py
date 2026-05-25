@@ -24,7 +24,7 @@ plt.rcParams.update({
 
 def plot_sentiment_distribution(sentiment_path: str | Path, output_dir: Path) -> None:
     """Plot the distribution of individual article sentiment scores to show positive bias."""
-    df = pd.read_csv(sentiment_path)
+    df = pd.read_parquet(sentiment_path)
     scores = df["sentiment_score"].dropna().to_numpy()
     
     fig, ax = plt.subplots(figsize=(7, 4.5))
@@ -131,8 +131,9 @@ def plot_robustness_comparison(summary_path: str | Path, output_dir: Path) -> No
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     
-    sentiment_path = "data/processed/article_sentiment_scores.csv"
-    summary_path = "data/processed/robustness_experiment_summary.json"
+    sentiment_path = "data/main/processed/article_sentiment_scores.parquet"
+    summary_path = "data/main/processed/robustness_experiment_summary.json"
+
     output_dir = Path("report/figures")
     output_dir.mkdir(parents=True, exist_ok=True)
     

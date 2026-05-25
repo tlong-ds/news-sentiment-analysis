@@ -12,15 +12,16 @@ import pandas as pd
 
 from src.config import PROCESSED_DATA_DIR
 from src.modeling.dataset import aggregate_article_sentiment
+from src.utils.io import read_table
 
 logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate article-level sentiment inference output.")
-    parser.add_argument("--articles-file", default=f"{PROCESSED_DATA_DIR}/articles_clean.csv")
-    parser.add_argument("--sentiment-file", default=f"{PROCESSED_DATA_DIR}/article_sentiment_scores.csv")
-    parser.add_argument("--daily-news-file", default=f"{PROCESSED_DATA_DIR}/daily_news_prices.csv")
+    parser.add_argument("--articles-file", default=f"{PROCESSED_DATA_DIR}/articles_clean.parquet")
+    parser.add_argument("--sentiment-file", default=f"{PROCESSED_DATA_DIR}/article_sentiment_scores.parquet")
+    parser.add_argument("--daily-news-file", default=f"{PROCESSED_DATA_DIR}/daily_news_prices.parquet")
     parser.add_argument("--report-file", default=f"{PROCESSED_DATA_DIR}/sentiment_inference_validation.json")
     parser.add_argument("--fail-on-validation", action="store_true")
     return parser.parse_args()
@@ -117,9 +118,9 @@ def validate_outputs(articles_df: pd.DataFrame, sentiment_df: pd.DataFrame, dail
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    articles_df = pd.read_csv(args.articles_file)
-    sentiment_df = pd.read_csv(args.sentiment_file)
-    daily_news_df = pd.read_csv(args.daily_news_file) if Path(args.daily_news_file).exists() else None
+    articles_df = read_table(args.articles_file)
+    sentiment_df = read_table(args.sentiment_file)
+    daily_news_df = read_table(args.daily_news_file) if Path(args.daily_news_file).exists() else None
     diagnostics = validate_outputs(articles_df, sentiment_df, daily_news_df=daily_news_df)
     with open(args.report_file, "w", encoding="utf-8") as handle:
         json.dump(diagnostics, handle, indent=2, ensure_ascii=False)

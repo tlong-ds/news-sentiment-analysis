@@ -18,6 +18,7 @@ from src.sentiment.common import (
     segment_text,
     token_stats,
 )
+from src.utils.io import read_table
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +26,10 @@ logger = logging.getLogger(__name__)
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Prepare ViFiC and CafeF sentiment input tables.")
     parser.add_argument("--vific-input", default=None, help="Raw ViFiC CSV/TXT-derived article table.")
-    parser.add_argument("--cafef-input", default=f"{PROCESSED_DATA_DIR}/articles_clean.csv")
-    parser.add_argument("--vific-output", default=f"{VIFIC_NORMALIZED_DIR}/vific_input.csv")
-    parser.add_argument("--vific-pretraining-output", default=f"{VIFIC_NORMALIZED_DIR}/vific_pretraining.csv")
-    parser.add_argument("--cafef-output", default=f"{CAFEF_DATA_DIR}/cafef_input.csv")
+    parser.add_argument("--cafef-input", default=f"{PROCESSED_DATA_DIR}/articles_clean.parquet")
+    parser.add_argument("--vific-output", default=f"{VIFIC_NORMALIZED_DIR}/vific_input.parquet")
+    parser.add_argument("--vific-pretraining-output", default=f"{VIFIC_NORMALIZED_DIR}/vific_pretraining.parquet")
+    parser.add_argument("--cafef-output", default=f"{CAFEF_DATA_DIR}/cafef_input.parquet")
     parser.add_argument("--report-file", default=f"{VIFIC_NORMALIZED_DIR}/input_preparation_report.json")
     parser.add_argument("--max-body-chars", type=int, default=300)
     parser.add_argument("--min-tokens", type=int, default=5)
@@ -150,7 +151,7 @@ def prepare_vific_inputs(
         max_tokens=max_tokens,
     )
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    prepared.to_csv(output_path, index=False)
+    prepared.to_parquet(output_path, index=False)
     logger.info("Prepared %d ViFiC rows -> %s", len(prepared), output_path)
     return prepared
 
@@ -163,7 +164,7 @@ def prepare_cafef_inputs(
     min_tokens: int = 5,
     max_tokens: int = 220,
 ) -> pd.DataFrame:
-    df = pd.read_csv(articles_clean_path)
+    df = read_table(articles_clean_path)
     prepared = _prepare_frame(
         df,
         article_id_col="url",
@@ -193,7 +194,7 @@ def prepare_cafef_inputs(
     ]
     prepared = prepared[front_cols]
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    prepared.to_csv(output_path, index=False)
+    prepared.to_parquet(output_path, index=False)
     logger.info("Prepared %d CafeF rows -> %s", len(prepared), output_path)
     return prepared
 
@@ -214,8 +215,8 @@ def main() -> None:
     )
     vific_pretraining = vific_prepared[["article_id", "input_text_segmented", "token_count"]].copy()
     Path(args.vific_pretraining_output).parent.mkdir(parents=True, exist_ok=True)
-    vific_pretraining.to_csv(args.vific_pretraining_output, index=False)
-    cafef_raw_df = pd.read_csv(args.cafef_input)
+    vific_pretraining.to_parquet(args.vific_pretraining_output, index=False)
+    cafef_raw_df = read_table(args.cafef_input)
     cafef_prepared = prepare_cafef_inputs(
         args.cafef_input,
         args.cafef_output,

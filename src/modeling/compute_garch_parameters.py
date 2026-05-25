@@ -6,8 +6,9 @@ from src.modeling.dataset import build_model_frame
 from src.modeling.hybrid import fit_garch11_baseline
 
 def main():
-    prices = "data/raw/prices_VN.csv"
-    daily_news = "data/processed/daily_news_prices.csv"
+    prices = "data/main/raw/prices_VN.csv"
+    daily_news = "data/main/processed/daily_news_prices.parquet"
+
     
     # Load model frame
     model_df = build_model_frame(prices, daily_news_path=daily_news)

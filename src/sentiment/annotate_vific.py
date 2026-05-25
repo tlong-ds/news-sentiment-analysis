@@ -42,7 +42,7 @@ Trả lời chỉ bằng JSON:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Dual-LLM annotation for ViFiC sample rows.")
-    parser.add_argument("--input-file", default=f"{ANNOTATION_DATA_DIR}/vific_annotation_sample.csv")
+    parser.add_argument("--input-file", default=f"{ANNOTATION_DATA_DIR}/vific_annotation_sample.parquet")
     parser.add_argument("--llm-a-model", default="gemini-2.0-flash-lite")
     parser.add_argument("--llm-b-model", default="gemini-2.0-flash")
 
@@ -215,7 +215,7 @@ def main() -> None:
     load_dotenv()
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    df = pd.read_csv(args.input_file)
+    df = pd.read_parquet(args.input_file)
     if args.limit is not None:
         df = df.head(args.limit)
 

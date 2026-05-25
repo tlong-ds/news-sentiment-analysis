@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run PhoBERT classifier inference on CafeF inputs.")
     parser.add_argument("--model-dir", default=f"{MODELS_DATA_DIR}/phobert-sentiment-cafef")
-    parser.add_argument("--input-file", default=f"{CAFEF_DATA_DIR}/cafef_input.csv")
-    parser.add_argument("--output-file", default=f"{PROCESSED_DATA_DIR}/article_sentiment_scores.csv")
+    parser.add_argument("--input-file", default=f"{CAFEF_DATA_DIR}/cafef_input.parquet")
+    parser.add_argument("--output-file", default=f"{PROCESSED_DATA_DIR}/article_sentiment_scores.parquet")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--max-length", type=int, default=256)
     parser.add_argument("--checkpoint-every", type=int, default=1000)
@@ -74,16 +74,16 @@ def main() -> None:
     if not model_dir.exists():
         raise FileNotFoundError(f"Classifier checkpoint not found: {model_dir}")
 
-    df = pd.read_csv(args.input_file)
+    df = pd.read_parquet(args.input_file)
     tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
     model = TFRobertaForSequenceClassification.from_pretrained(str(model_dir))
 
     output_path = ensure_parent_dir(args.output_file)
-    checkpoint_path = output_path.with_suffix(".checkpoint.csv")
+    checkpoint_path = output_path.with_suffix(".checkpoint.parquet")
     batches: list[pd.DataFrame] = []
     start_offset = 0
     if checkpoint_path.exists():
-        checkpoint_df = pd.read_csv(checkpoint_path)
+        checkpoint_df = pd.read_parquet(checkpoint_path)
         if not checkpoint_df.empty:
             batches.append(checkpoint_df)
             start_offset = len(checkpoint_df)
@@ -100,11 +100,11 @@ def main() -> None:
         batches.append(build_output_rows(batch_df, probabilities))
         processed = start + len(batch_df)
         if processed % args.checkpoint_every == 0:
-            pd.concat(batches, ignore_index=True).to_csv(checkpoint_path, index=False)
+            pd.concat(batches, ignore_index=True).to_parquet(checkpoint_path, index=False)
             logger.info("Checkpointed %d rows -> %s", processed, checkpoint_path)
 
     output_df = pd.concat(batches, ignore_index=True)
-    output_df.to_csv(output_path, index=False)
+    output_df.to_parquet(output_path, index=False)
     logger.info("Saved %d inference rows -> %s", len(output_df), output_path)
 
 

@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sample a ViFiC annotation subset.")
-    parser.add_argument("--input-file", default=f"{VIFIC_NORMALIZED_DIR}/vific_input.csv")
-    parser.add_argument("--output-file", default=f"{ANNOTATION_DATA_DIR}/vific_annotation_sample.csv")
+    parser.add_argument("--input-file", default=f"{VIFIC_NORMALIZED_DIR}/vific_input.parquet")
+    parser.add_argument("--output-file", default=f"{ANNOTATION_DATA_DIR}/vific_annotation_sample.parquet")
     parser.add_argument("--report-file", default=f"{ANNOTATION_DATA_DIR}/vific_annotation_sample_report.json")
     parser.add_argument("--sample-size", type=int, default=5000)
     parser.add_argument("--seed", type=int, default=42)
@@ -115,9 +115,9 @@ def build_sampling_report(full_df: pd.DataFrame, sampled_df: pd.DataFrame) -> di
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    df = pd.read_csv(args.input_file)
+    df = pd.read_parquet(args.input_file)
     sampled = stratified_sample(df, sample_size=args.sample_size, seed=args.seed)
-    sampled.to_csv(args.output_file, index=False)
+    sampled.to_parquet(args.output_file, index=False)
     report = build_sampling_report(df, sampled)
     with open(args.report_file, "w", encoding="utf-8") as handle:
         json.dump(report, handle, indent=2, ensure_ascii=False)

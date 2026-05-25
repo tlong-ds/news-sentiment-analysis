@@ -10,13 +10,14 @@ import pandas as pd
 
 from src.config import PROCESSED_DATA_DIR
 from src.modeling.dataset import aggregate_article_sentiment
+from src.utils.io import read_table
 
 logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Summarize daily aggregation diagnostics.")
-    parser.add_argument("--sentiment-file", default=f"{PROCESSED_DATA_DIR}/article_sentiment_scores.csv")
+    parser.add_argument("--sentiment-file", default=f"{PROCESSED_DATA_DIR}/article_sentiment_scores.parquet")
     parser.add_argument("--output-file", default=f"{PROCESSED_DATA_DIR}/daily_aggregation_validation.json")
     return parser.parse_args()
 
@@ -24,7 +25,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    sentiment_df = pd.read_csv(args.sentiment_file)
+    sentiment_df = read_table(args.sentiment_file)
     daily = aggregate_article_sentiment(sentiment_df)
     one_article_days = int((daily["sentiment_volume"] == 1).sum())
     report = {

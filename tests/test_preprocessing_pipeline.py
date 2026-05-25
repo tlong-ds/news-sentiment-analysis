@@ -199,8 +199,8 @@ def test_export_preprocessed_outputs_writes_correct_files(tmp_path: Path):
     assert paths["diagnostics"].exists()
 
     # Reload and verify column contracts.
-    articles_reload = pd.read_csv(paths["articles_clean"])
-    daily_reload = pd.read_csv(paths["daily_news_prices"])
+    articles_reload = pd.read_parquet(paths["articles_clean"])
+    daily_reload = pd.read_parquet(paths["daily_news_prices"])
 
     assert set(ARTICLES_CLEAN_COLUMNS).issubset(set(articles_reload.columns))
     assert set(DAILY_NEWS_PRICES_COLUMNS).issubset(set(daily_reload.columns))

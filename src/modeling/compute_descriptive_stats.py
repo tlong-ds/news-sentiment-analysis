@@ -35,10 +35,11 @@ def ljung_box_test(x: np.ndarray, lags: list[int]) -> dict[int, tuple[float, flo
 
 def main() -> None:
     # 1. Paths
-    prices_path = Path("data/raw/prices_VN.csv")
-    articles_path = Path("data/processed/articles_clean.csv")
-    sentiment_path = Path("data/processed/article_sentiment_scores.csv")
-    daily_news_path = Path("data/processed/daily_news_prices.csv")
+    prices_path = Path("data/main/raw/prices_VN.csv")
+    articles_path = Path("data/main/processed/articles_clean.parquet")
+    sentiment_path = Path("data/main/processed/article_sentiment_scores.parquet")
+    daily_news_path = Path("data/main/processed/daily_news_prices.parquet")
+
     output_dir = Path("report/tables")
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -52,13 +53,13 @@ def main() -> None:
     returns = df_prices["log_return"].dropna().to_numpy() * 100.0
     
     # Load sentiment scores
-    df_sent = pd.read_csv(sentiment_path)
+    df_sent = pd.read_parquet(sentiment_path)
     
     # Load daily aggregates
-    df_daily = pd.read_csv(daily_news_path)
+    df_daily = pd.read_parquet(daily_news_path)
     
     # Load clean articles
-    df_art = pd.read_csv(articles_path)
+    df_art = pd.read_parquet(articles_path)
 
     print("\n--- VN-Index Returns Descriptive Statistics ---")
     n_days = len(returns)

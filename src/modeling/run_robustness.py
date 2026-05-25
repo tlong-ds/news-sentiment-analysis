@@ -29,16 +29,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run robustness checks for GARCH plus sentiment-LSTM volatility model."
     )
-    parser.add_argument("--prices", default="data/raw/prices_VN.csv")
-    parser.add_argument("--daily-news", default="data/processed/daily_news_prices.csv")
-    parser.add_argument("--sentiment", default="data/processed/article_sentiment_scores.csv")
-    parser.add_argument("--articles-clean", default="data/processed/articles_clean.csv")
+    parser.add_argument("--prices", default="data/main/raw/prices_VN.csv")
+    parser.add_argument("--daily-news", default="data/main/processed/daily_news_prices.parquet")
+    parser.add_argument("--sentiment", default="data/main/processed/article_sentiment_scores.parquet")
+    parser.add_argument("--articles-clean", default="data/main/processed/articles_clean.parquet")
     parser.add_argument("--sequence-length", type=int, default=15)
     parser.add_argument("--train-end", default="2021-12-31")
     parser.add_argument("--val-end", default="2023-12-31")
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--output", default="data/processed/robustness_experiment_summary.json")
+    parser.add_argument("--output", default="data/main/processed/robustness_experiment_summary.json")
+
     return parser.parse_args()
 
 

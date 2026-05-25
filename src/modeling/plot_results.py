@@ -134,8 +134,9 @@ def plot_forecast_comparison(summary_path: str | Path, output_dir: Path) -> None
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     
-    prices = "data/raw/prices_VN.csv"
-    summary = "data/processed/hybrid_experiment_summary.json"
+    prices = "data/main/raw/prices_VN.csv"
+    summary = "data/main/processed/hybrid_experiment_summary.json"
+
     output_dir = Path("report/figures")
     output_dir.mkdir(parents=True, exist_ok=True)
     

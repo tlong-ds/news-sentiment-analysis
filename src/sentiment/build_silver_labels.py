@@ -40,14 +40,14 @@ def compute_cohen_kappa(left: pd.Series, right: pd.Series, labels: list[str]) ->
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a silver-label sentiment dataset.")
-    parser.add_argument("--sample-file", default=f"{ANNOTATION_DATA_DIR}/vific_annotation_sample.csv")
+    parser.add_argument("--sample-file", default=f"{ANNOTATION_DATA_DIR}/vific_annotation_sample.parquet")
     parser.add_argument("--llm-a-file", default=f"{ANNOTATION_DATA_DIR}/llm_a_raw_responses.jsonl")
     parser.add_argument("--llm-b-file", default=f"{ANNOTATION_DATA_DIR}/llm_b_raw_responses.jsonl")
-    parser.add_argument("--merged-output", default=f"{ANNOTATION_DATA_DIR}/vific_llm_labels.csv")
-    parser.add_argument("--dataset-output", default=f"{ANNOTATION_DATA_DIR}/sentiment_labeled_full.csv")
+    parser.add_argument("--merged-output", default=f"{ANNOTATION_DATA_DIR}/vific_llm_labels.parquet")
+    parser.add_argument("--dataset-output", default=f"{ANNOTATION_DATA_DIR}/sentiment_labeled_full.parquet")
     parser.add_argument("--metrics-output", default=f"{ANNOTATION_DATA_DIR}/silver_label_metrics.json")
-    parser.add_argument("--spot-check-output", default=f"{ANNOTATION_DATA_DIR}/spot_check_sample.csv")
-    parser.add_argument("--disagreements-output", default=f"{ANNOTATION_DATA_DIR}/vific_disagreement_cases.csv")
+    parser.add_argument("--spot-check-output", default=f"{ANNOTATION_DATA_DIR}/spot_check_sample.parquet")
+    parser.add_argument("--disagreements-output", default=f"{ANNOTATION_DATA_DIR}/vific_disagreement_cases.parquet")
     parser.add_argument("--confidence-threshold", type=float, default=0.75)
     parser.add_argument("--allow-low-kappa", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
@@ -196,7 +196,7 @@ def build_stage4_metrics(metrics: dict, merged: pd.DataFrame, threshold_used: fl
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    sample_df = pd.read_csv(args.sample_file)
+    sample_df = pd.read_parquet(args.sample_file)
     llm_a_df = parse_response_records(read_jsonl(args.llm_a_file), "llm_a")
     llm_b_df = parse_response_records(read_jsonl(args.llm_b_file), "llm_b")
     merged, metrics = build_consensus_table(
@@ -218,7 +218,7 @@ def main() -> None:
         )
     dataset = split_labeled_dataset(merged, seed=args.seed)
     disagreements = merged[~merged["agreement"]].copy()
-    disagreements.to_csv(args.disagreements_output, index=False)
+    disagreements.to_parquet(args.disagreements_output, index=False)
     spot_check = (
         merged[merged["final_label"].notna()]
         .sample(n=min(50, int(merged["final_label"].notna().sum())), random_state=args.seed)
@@ -227,10 +227,10 @@ def main() -> None:
     if not spot_check.empty:
         spot_check["author_label"] = ""
         spot_check["author_matches_consensus"] = ""
-        spot_check.to_csv(args.spot_check_output, index=False)
+        spot_check.to_parquet(args.spot_check_output, index=False)
 
-    merged.to_csv(args.merged_output, index=False)
-    dataset.to_csv(args.dataset_output, index=False)
+    merged.to_parquet(args.merged_output, index=False)
+    dataset.to_parquet(args.dataset_output, index=False)
     metrics = build_stage4_metrics(metrics, merged, threshold_used, threshold_fallback_triggered)
     with open(args.metrics_output, "w", encoding="utf-8") as handle:
         json.dump(metrics, handle, indent=2, ensure_ascii=False)

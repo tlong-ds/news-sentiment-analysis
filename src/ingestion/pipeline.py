@@ -51,8 +51,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sources",
         default="cafef,vnstock",
-        help="Comma-separated sources: cafef, vnstock, vific.",
+        help="Comma-separated sources: cafef, vnstock.",
     )
+
     parser.add_argument(
         "--limit-pages",
         type=int,
@@ -164,15 +165,8 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, SourceStats]:
                 end,
                 discover_only=args.discover_only,
             )
-        elif source == "vific":
-            from src.ingestion.vific_source import run_vific
-
-            stats = run_vific(
-                start,
-                end,
-                discover_only=args.discover_only,
-            )
         else:
+
             logger.warning("Skipping unknown source: %s", source)
             continue
 

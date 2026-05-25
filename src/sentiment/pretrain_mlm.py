@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run optional PhoBERT MLM adaptation on ViFiC.")
-    parser.add_argument("--input-file", default=f"{VIFIC_NORMALIZED_DIR}/vific_pretraining.csv")
+    parser.add_argument("--input-file", default=f"{VIFIC_NORMALIZED_DIR}/vific_pretraining.parquet")
     parser.add_argument("--text-column", default="input_text_segmented")
     parser.add_argument("--base-model", default="vinai/phobert-base-v2")
     parser.add_argument("--output-dir", default=f"{MODELS_DATA_DIR}/phobert-vific-adapted")
@@ -94,7 +94,7 @@ class MlMValidationCallback(keras.callbacks.Callback):
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    df = pd.read_csv(args.input_file)
+    df = pd.read_parquet(args.input_file)
     texts = df[args.text_column].dropna().astype(str).tolist()
     if not texts:
         raise ValueError("No pretraining texts were found.")

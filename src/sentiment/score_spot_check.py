@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Score author labels against LLM consensus labels.")
-    parser.add_argument("--input-file", default=f"{ANNOTATION_DATA_DIR}/spot_check_sample.csv")
+    parser.add_argument("--input-file", default=f"{ANNOTATION_DATA_DIR}/spot_check_sample.parquet")
     parser.add_argument("--output-file", default=f"{ANNOTATION_DATA_DIR}/spot_check_results.json")
     return parser.parse_args()
 
@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    df = pd.read_csv(args.input_file)
+    df = pd.read_parquet(args.input_file)
     required = {"final_label", "author_label"}
     missing = sorted(required - set(df.columns))
     if missing:

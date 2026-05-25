@@ -19,9 +19,9 @@ def test_prepare_cafef_inputs_builds_expected_columns(tmp_path: Path):
             }
         ]
     )
-    input_path = tmp_path / "articles_clean.csv"
-    output_path = tmp_path / "cafef_input.csv"
-    articles.to_csv(input_path, index=False)
+    input_path = tmp_path / "articles_clean.parquet"
+    output_path = tmp_path / "cafef_input.parquet"
+    articles.to_parquet(input_path, index=False)
 
     prepared = prepare_cafef_inputs(input_path, output_path)
 
@@ -43,6 +43,29 @@ def test_prepare_cafef_inputs_builds_expected_columns(tmp_path: Path):
     assert prepared.loc[0, "token_count"] >= 5
 
 
+def test_prepare_cafef_inputs_accepts_legacy_csv(tmp_path: Path):
+    articles = pd.DataFrame(
+        [
+            {
+                "url": "u1",
+                "category": "Chứng khoán",
+                "date": "2024-01-02",
+                "trading_date": "2024-01-02",
+                "title": "Lợi nhuận tăng mạnh",
+                "body_clean": "Doanh nghiệp ghi nhận lợi nhuận tăng trưởng mạnh trong quý này." * 4,
+            }
+        ]
+    )
+    input_path = tmp_path / "articles_clean.csv"
+    output_path = tmp_path / "cafef_input.parquet"
+    articles.to_csv(input_path, index=False)
+
+    prepared = prepare_cafef_inputs(input_path, output_path)
+
+    assert prepared.loc[0, "article_id"] == "u1"
+    assert output_path.exists()
+
+
 def test_prepare_vific_inputs_filters_short_rows(tmp_path: Path):
     rows = pd.DataFrame(
         [
@@ -51,7 +74,7 @@ def test_prepare_vific_inputs_filters_short_rows(tmp_path: Path):
         ]
     )
     input_path = tmp_path / "vific.csv"
-    output_path = tmp_path / "vific_input.csv"
+    output_path = tmp_path / "vific_input.parquet"
     rows.to_csv(input_path, index=False)
 
     prepared = prepare_vific_inputs(input_path, output_path)
@@ -71,7 +94,7 @@ def test_prepare_vific_inputs_preserves_existing_underscores(tmp_path: Path):
         ]
     )
     input_path = tmp_path / "vific.csv"
-    output_path = tmp_path / "vific_input.csv"
+    output_path = tmp_path / "vific_input.parquet"
     rows.to_csv(input_path, index=False)
 
     prepared = prepare_vific_inputs(input_path, output_path, preserve_existing_segmentation=True)

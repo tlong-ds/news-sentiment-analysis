@@ -26,17 +26,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a two-stage GARCH plus sentiment-LSTM volatility experiment."
     )
-    parser.add_argument("--prices", default="data/raw/prices_VN.csv")
-    parser.add_argument("--daily-news", default="data/processed/daily_news_prices.csv")
+    parser.add_argument("--prices", default="data/main/raw/prices_VN.csv")
+    parser.add_argument("--daily-news", default="data/main/processed/daily_news_prices.parquet")
     parser.add_argument(
         "--sentiment",
         default=None,
-        help="CSV with article-level sentiment_score or daily sentiment aggregates.",
+        help="Parquet or CSV with article-level sentiment_score or daily sentiment aggregates.",
     )
     parser.add_argument(
         "--articles-clean",
-        default="data/processed/articles_clean.csv",
-        help="CSV with article-level metadata including categories (used to extract macro/market subsets).",
+        default="data/main/processed/articles_clean.parquet",
+        help="Parquet with article-level metadata including categories (used to extract macro/market subsets).",
     )
     parser.add_argument("--sequence-length", type=int, default=15)
     parser.add_argument("--train-end", default="2021-12-31")
@@ -48,7 +48,8 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Build the experiment frame and evaluate the GARCH baseline without training the LSTM.",
     )
-    parser.add_argument("--output", default="data/processed/hybrid_experiment_summary.json")
+    parser.add_argument("--output", default="data/main/processed/hybrid_experiment_summary.json")
+
     return parser.parse_args()
 
 

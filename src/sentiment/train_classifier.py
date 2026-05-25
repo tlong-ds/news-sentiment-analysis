@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train supervised PhoBERT sentiment classifier.")
-    parser.add_argument("--dataset-file", default=f"{ANNOTATION_DATA_DIR}/sentiment_labeled_full.csv")
+    parser.add_argument("--dataset-file", default=f"{ANNOTATION_DATA_DIR}/sentiment_labeled_full.parquet")
     parser.add_argument("--base-model", default="vinai/phobert-base-v2")
     parser.add_argument("--output-dir", default=f"{MODELS_DATA_DIR}/phobert-sentiment-cafef")
     parser.add_argument("--max-length", type=int, default=256)
@@ -95,7 +95,7 @@ def _build_dataset(features: dict[str, np.ndarray], labels: np.ndarray, batch_si
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    df = pd.read_csv(args.dataset_file)
+    df = pd.read_parquet(args.dataset_file)
     train_df = df[df["split"] == "train"].copy()
     val_df = df[df["split"] == "val"].copy()
     test_df = df[df["split"] == "test"].copy()

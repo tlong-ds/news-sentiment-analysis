@@ -9,6 +9,8 @@ import logging
 import numpy as np
 import pandas as pd
 
+from src.utils.io import read_table
+
 logger = logging.getLogger(__name__)
 MACRO_CATEGORIES = {"Vĩ mô", "Kinh tế"}
 MARKET_CATEGORIES = {"Chứng khoán", "Thị trường"}
@@ -22,6 +24,19 @@ class SentimentAggregationError(ValueError):
 class SentimentFrameSpec:
     date_column: str
     is_article_level: bool
+
+
+def _resolve_default_articles_clean_path(price_path: str | Path) -> Path | None:
+    price_parent = Path(price_path).parent
+    candidates = [
+        price_parent.parent / "processed" / "articles_clean.parquet",
+        price_parent.parent / "processed" / "articles_clean.csv",
+        Path("data/main/processed/articles_clean.parquet"),
+        Path("data/main/processed/articles_clean.csv"),
+        Path("data/processed/articles_clean.parquet"),
+        Path("data/processed/articles_clean.csv"),
+    ]
+    return next((path for path in candidates if path.exists()), None)
 
 
 def _resolve_category_frame(
@@ -237,11 +252,13 @@ def build_model_frame(
     target_type: str = "parkinson",
 ) -> pd.DataFrame:
     """Merge price, daily news intensity, and daily sentiment into one frame."""
-    price_df = pd.read_csv(price_path)
+    price_df = read_table(price_path)
     model_df = compute_volatility_features(price_df, target_type=target_type)
 
     if daily_news_path is not None:
-        daily_news = pd.read_csv(daily_news_path, parse_dates=["date"])
+        daily_news = read_table(daily_news_path)
+        if "date" in daily_news.columns:
+            daily_news["date"] = pd.to_datetime(daily_news["date"])
         keep_cols = [
             col
             for col in ["date", "n_articles", "n_categories", "mean_body_len"]
@@ -250,21 +267,17 @@ def build_model_frame(
         model_df = model_df.merge(daily_news[keep_cols], on="date", how="left")
 
     if sentiment_path is not None:
-        sentiment_df = pd.read_csv(sentiment_path)
-        
-        # Load articles_clean.csv to extract categories for macro/market sentiment
+        sentiment_df = read_table(sentiment_path)
+
+        # Load article metadata to extract categories for macro/market sentiment.
         articles_clean_df = None
         if articles_clean_path is not None:
-            articles_clean_df = pd.read_csv(articles_clean_path)
+            articles_clean_df = read_table(articles_clean_path)
         else:
-            # Fall back to default location relative to price_path
-            price_parent = Path(price_path).parent
-            default_clean_path = price_parent.parent / "processed" / "articles_clean.csv"
-            if not default_clean_path.exists():
-                default_clean_path = Path("data/processed/articles_clean.csv")
-            if default_clean_path.exists():
-                articles_clean_df = pd.read_csv(default_clean_path)
-                
+            default_clean_path = _resolve_default_articles_clean_path(price_path)
+            if default_clean_path is not None:
+                articles_clean_df = read_table(default_clean_path)
+
         daily_sentiment = aggregate_article_sentiment(
             sentiment_df,
             articles_clean_df=articles_clean_df,

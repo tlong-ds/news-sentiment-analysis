@@ -1,4 +1,4 @@
-"""Pipeline orchestrator — runs all sources and produces unified output.
+"""Pipeline orchestrator — runs all supported sources and produces unified output.
 
 Usage:
     python -m src.ingestion.pipeline --start 2015-01-01 --end 2024-12-31
@@ -6,7 +6,6 @@ Usage:
 Sources are executed in order:
     1. CafeF  — sitemap-based discovery + HTML parsing (primary)
     2. vnstock — ticker-level company news via API
-    3. ViFiC  — pre-curated dataset (supplementary)
 
 Results are written per-source and merged into a deduplicated combined CSV.
 """

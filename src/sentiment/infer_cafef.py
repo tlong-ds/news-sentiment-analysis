@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from transformers import AutoTokenizer, TFRobertaForSequenceClassification
+from transformers import AutoConfig, AutoTokenizer, TFRobertaForSequenceClassification
 
 from src.config import CAFEF_DATA_DIR, MODELS_DATA_DIR, PROCESSED_DATA_DIR
 from src.sentiment.common import ensure_parent_dir
+from src.utils.io import read_parquet_table
 
 logger = logging.getLogger(__name__)
 
@@ -67,14 +69,28 @@ def build_output_rows(batch_df: pd.DataFrame, probabilities: np.ndarray) -> pd.D
     )
 
 
+def validate_classifier_checkpoint(model_dir: Path) -> None:
+    config_path = model_dir / "config.json"
+    if not config_path.exists():
+        raise FileNotFoundError(f"Classifier checkpoint missing config.json: {model_dir}")
+
+    config = AutoConfig.from_pretrained(str(model_dir))
+    architectures = {value.lower() for value in getattr(config, "architectures", [])}
+    if not any("sequenceclassification" in value for value in architectures):
+        raise ValueError(f"Checkpoint is not a sequence-classification model: {model_dir}")
+    if getattr(config, "num_labels", None) != 3:
+        raise ValueError(f"Classifier checkpoint must expose 3 labels: {model_dir}")
+
+
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     model_dir = Path(args.model_dir)
     if not model_dir.exists():
         raise FileNotFoundError(f"Classifier checkpoint not found: {model_dir}")
+    validate_classifier_checkpoint(model_dir)
 
-    df = pd.read_parquet(args.input_file)
+    df = read_parquet_table(args.input_file)
     tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
     model = TFRobertaForSequenceClassification.from_pretrained(str(model_dir))
 
@@ -83,7 +99,7 @@ def main() -> None:
     batches: list[pd.DataFrame] = []
     start_offset = 0
     if checkpoint_path.exists():
-        checkpoint_df = pd.read_parquet(checkpoint_path)
+        checkpoint_df = read_parquet_table(checkpoint_path)
         if not checkpoint_df.empty:
             batches.append(checkpoint_df)
             start_offset = len(checkpoint_df)

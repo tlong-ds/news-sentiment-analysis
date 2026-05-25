@@ -10,7 +10,7 @@ import pandas as pd
 
 from src.config import PROCESSED_DATA_DIR
 from src.modeling.dataset import aggregate_article_sentiment
-from src.utils.io import read_table
+from src.utils.io import read_parquet_table
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    sentiment_df = read_table(args.sentiment_file)
+    sentiment_df = read_parquet_table(args.sentiment_file)
     daily = aggregate_article_sentiment(sentiment_df)
     one_article_days = int((daily["sentiment_volume"] == 1).sum())
     report = {

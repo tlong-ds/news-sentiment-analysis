@@ -12,7 +12,7 @@ import pandas as pd
 
 from src.config import PROCESSED_DATA_DIR
 from src.modeling.dataset import aggregate_article_sentiment
-from src.utils.io import read_table
+from src.utils.io import read_parquet_table
 
 logger = logging.getLogger(__name__)
 
@@ -118,9 +118,9 @@ def validate_outputs(articles_df: pd.DataFrame, sentiment_df: pd.DataFrame, dail
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    articles_df = read_table(args.articles_file)
-    sentiment_df = read_table(args.sentiment_file)
-    daily_news_df = read_table(args.daily_news_file) if Path(args.daily_news_file).exists() else None
+    articles_df = read_parquet_table(args.articles_file)
+    sentiment_df = read_parquet_table(args.sentiment_file)
+    daily_news_df = read_parquet_table(args.daily_news_file) if Path(args.daily_news_file).exists() else None
     diagnostics = validate_outputs(articles_df, sentiment_df, daily_news_df=daily_news_df)
     with open(args.report_file, "w", encoding="utf-8") as handle:
         json.dump(diagnostics, handle, indent=2, ensure_ascii=False)

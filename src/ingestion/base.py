@@ -1,7 +1,7 @@
 """Shared types and protocols for the news ingestion pipeline.
 
-Every source module (cafef, vnstock, vific) produces ``Article`` objects that
-the pipeline orchestrator collects, deduplicates, and writes to CSV.
+Every source module produces ``Article`` objects that the pipeline orchestrator
+collects, deduplicates, and writes to CSV.
 """
 
 from __future__ import annotations

@@ -1,6 +1,0 @@
-outs:
-- md5: 889245fb82c0061cd0bd7bf94c43dba0.dir
-  size: 1328954275
-  nfiles: 8
-  hash: md5
-  path: fine-tunes

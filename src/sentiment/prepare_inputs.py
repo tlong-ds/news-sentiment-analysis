@@ -23,10 +23,18 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Prepare CafeF sentiment input tables.")
-    parser.add_argument("--cafef-input", default=f"{PROCESSED_DATA_DIR}/articles_clean.parquet")
-    parser.add_argument("--cafef-output", default=f"{CAFEF_DATA_DIR}/cafef_input.parquet")
-    parser.add_argument("--report-file", default=f"{CAFEF_DATA_DIR}/input_preparation_report.json")
+    parser = argparse.ArgumentParser(
+        description="Prepare CafeF sentiment input tables."
+    )
+    parser.add_argument(
+        "--cafef-input", default=f"{PROCESSED_DATA_DIR}/articles_clean.parquet"
+    )
+    parser.add_argument(
+        "--cafef-output", default=f"{CAFEF_DATA_DIR}/cafef_input.parquet"
+    )
+    parser.add_argument(
+        "--report-file", default=f"{CAFEF_DATA_DIR}/input_preparation_report.json"
+    )
     parser.add_argument("--max-body-chars", type=int, default=300)
     parser.add_argument("--min-tokens", type=int, default=5)
     parser.add_argument("--max-tokens", type=int, default=220)
@@ -51,14 +59,21 @@ def _prepare_frame(
     prepared = pd.DataFrame(
         {
             "article_id": df[article_id_col].astype(str),
-            "source": df["source"].astype(str) if "source" in df.columns else source_default,
-            "category": df[category_col].astype(str) if category_col and category_col in df.columns else "",
+            "source": df["source"].astype(str)
+            if "source" in df.columns
+            else source_default,
+            "category": df[category_col].astype(str)
+            if category_col and category_col in df.columns
+            else "",
             "date": df[date_col].astype(str),
             "title": df[title_col].fillna("").astype(str),
         }
     )
-    prepared["body_lead"] = df[body_col].fillna("").astype(str).map(
-        lambda value: body_lead(value, max_chars=max_body_chars)
+    prepared["body_lead"] = (
+        df[body_col]
+        .fillna("")
+        .astype(str)
+        .map(lambda value: body_lead(value, max_chars=max_body_chars))
     )
     prepared["input_text"] = [
         build_input_text(title, lead)
@@ -76,7 +91,9 @@ def _prepare_frame(
     return prepared.reset_index(drop=True)
 
 
-def build_input_report(raw_df: pd.DataFrame, prepared_df: pd.DataFrame, sample_size: int = 1000) -> dict:
+def build_input_report(
+    raw_df: pd.DataFrame, prepared_df: pd.DataFrame, sample_size: int = 1000
+) -> dict:
     sample = prepared_df.head(sample_size)
     return {
         "raw_rows": int(len(raw_df)),
@@ -85,7 +102,9 @@ def build_input_report(raw_df: pd.DataFrame, prepared_df: pd.DataFrame, sample_s
         "token_stats_full": token_stats(prepared_df["token_count"]),
         "token_stats_sample": token_stats(sample["token_count"]),
         "sample_size_for_p95": int(min(sample_size, len(prepared_df))),
-        "p95_under_200": bool(token_stats(sample["token_count"])["p95"] < 200.0) if len(sample) else False,
+        "p95_under_200": bool(token_stats(sample["token_count"])["p95"] < 200.0)
+        if len(sample)
+        else False,
     }
 
 
@@ -134,7 +153,9 @@ def prepare_cafef_inputs(
 
 def main() -> None:
     args = parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
     cafef_raw_df = read_parquet_table(args.cafef_input)
     cafef_prepared = prepare_cafef_inputs(
@@ -150,7 +171,9 @@ def main() -> None:
         "token_filter": {"min_tokens": args.min_tokens, "max_tokens": args.max_tokens},
     }
     Path(args.report_file).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.report_file).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    Path(args.report_file).write_text(
+        json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     logger.info("Wrote input preparation report -> %s", args.report_file)
 
 

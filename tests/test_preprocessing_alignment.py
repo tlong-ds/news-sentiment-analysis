@@ -1,6 +1,9 @@
 import pandas as pd
 
-from src.preprocessing.news_alignment import aggregate_daily_news, align_articles_to_trading_day
+from src.preprocessing.news_alignment import (
+    aggregate_daily_news,
+    align_articles_to_trading_day,
+)
 
 
 def test_align_articles_to_trading_day_respects_market_close_cutoff():
@@ -49,7 +52,11 @@ def test_aggregate_daily_news_exposes_bunching_diagnostics():
             "category": ["Vi mo", "Chung khoan", "Vi mo"],
             "body_clean": ["a" * 100, "b" * 120, "c" * 110],
             "is_after_close": [0, 1, 0],
-            "alignment_reason": ["non_trading_forward", "after_close_forward", "same_session"],
+            "alignment_reason": [
+                "non_trading_forward",
+                "after_close_forward",
+                "same_session",
+            ],
             "calendar_gap_days": [9, 1, 0],
         }
     )
@@ -153,6 +160,8 @@ def test_long_holiday_shift_beyond_7_days_is_not_dropped():
 
     aligned = align_articles_to_trading_day(news, trading_dates)
 
-    assert not aligned["trading_date"].isna().any(), "Long-holiday row must not be dropped."
+    assert not aligned["trading_date"].isna().any(), (
+        "Long-holiday row must not be dropped."
+    )
     assert aligned.loc[0, "trading_date"] == pd.Timestamp("2024-02-21")
     assert aligned.loc[0, "calendar_gap_days"] == 9

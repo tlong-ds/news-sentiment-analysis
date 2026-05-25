@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from src.sentiment.validate_inference import validate_outputs
 
@@ -23,3 +24,18 @@ def test_validate_outputs_reports_probability_drift():
     assert diagnostics["row_count_match"] is True
     assert diagnostics["duplicate_urls"] == 0
     assert diagnostics["probability_sum_max_abs_error"] == 0.0
+
+
+def test_validate_outputs_rejects_stale_schema():
+    articles_df = pd.DataFrame({"url": ["u1"]})
+    stale_df = pd.DataFrame(
+        {
+            "url": ["u1"],
+            "trading_date": ["2024-01-02"],
+            "sentiment_score": [0.2],
+            "sentiment_label": ["positive"],
+        }
+    )
+
+    with pytest.raises(ValueError, match="Stale sentiment output schema detected"):
+        validate_outputs(articles_df, stale_df)

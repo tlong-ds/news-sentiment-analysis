@@ -1,10 +1,10 @@
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
-import pytest
 
-from src.modeling.dataset import aggregate_article_sentiment, compute_volatility_features
+from src.modeling.dataset import (
+    aggregate_article_sentiment,
+    compute_volatility_features,
+)
 from src.modeling.hybrid import fit_garchx11_baseline, fit_expanding_garch
 
 
@@ -45,7 +45,7 @@ def test_garman_klass_target_volatility():
     df_parkinson = compute_volatility_features(prices, target_type="parkinson")
     assert "gk_vol" in df_parkinson.columns
     assert "parkinson_vol" in df_parkinson.columns
-    
+
     # Garman-Klass
     df_gk = compute_volatility_features(prices, target_type="garman_klass")
     # Verify target_vol is filled with gk_vol (not Parkinson)
@@ -58,9 +58,9 @@ def test_garch_x_fitting():
     # Simulate stationary returns and exogenous sentiment variable
     returns = np.random.normal(0, 0.01, n_days)
     exog = np.random.uniform(-1, 1, n_days)
-    
+
     result = fit_garchx11_baseline(returns, exog, scale=100.0)
-    
+
     assert result.omega > 0
     assert result.alpha >= 0
     assert result.beta >= 0
@@ -75,7 +75,7 @@ def test_fit_expanding_garch():
     np.random.seed(42)
     n_days = 80
     returns = np.random.normal(0, 0.01, n_days)
-    
+
     train_len = 50
     cond_vol, forecast_vol, std_resid = fit_expanding_garch(
         returns,
@@ -83,7 +83,7 @@ def test_fit_expanding_garch():
         reestimate_freq=10,
         scale=100.0,
     )
-    
+
     assert len(cond_vol) == n_days
     assert len(forecast_vol) == n_days
     assert len(std_resid) == n_days

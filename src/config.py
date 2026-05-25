@@ -57,10 +57,26 @@ CAFEF_CATEGORIES = {
 # Covers banking, real estate, tech, consumer, energy — the sectors
 # most relevant for financial sentiment analysis.
 VNSTOCK_SYMBOLS = [
-    "VNM", "VCB", "VIC", "VHM", "HPG",
-    "FPT", "MBB", "TCB", "CTG", "BID",
-    "MSN", "VNR", "SSI", "VND", "HCM",
-    "PLX", "GAS", "SAB", "MWG", "PNJ",
+    "VNM",
+    "VCB",
+    "VIC",
+    "VHM",
+    "HPG",
+    "FPT",
+    "MBB",
+    "TCB",
+    "CTG",
+    "BID",
+    "MSN",
+    "VNR",
+    "SSI",
+    "VND",
+    "HCM",
+    "PLX",
+    "GAS",
+    "SAB",
+    "MWG",
+    "PNJ",
 ]
 VNSTOCK_PROVIDER_ORDER = ["VCI", "KBS"]
 VNSTOCK_PAGE_SIZE = 50
@@ -68,8 +84,7 @@ VNSTOCK_MAX_PAGES = 10
 
 # --- VnCoreNLP Configuration ---
 VNCORENLP_JAR_PATH = os.environ.get(
-    "VNCORENLP_JAR_PATH",
-    os.path.join(BASE_DIR, "vncorenlp", "VnCoreNLP-1.1.1.jar")
+    "VNCORENLP_JAR_PATH", os.path.join(BASE_DIR, "vncorenlp", "VnCoreNLP-1.1.1.jar")
 )
 
 # --- Output files ---
@@ -77,4 +92,3 @@ SOURCE_OUTPUTS = {
     "cafef": "news_VN_cafef.csv",
     "vnstock": "news_VN_vnstock.csv",
 }
-

@@ -29,8 +29,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Fetch VN-Index daily OHLCV data via vnstock quote history."
     )
-    parser.add_argument("--symbol", default=DEFAULT_SYMBOL, help="Index symbol for vnstock.")
-    parser.add_argument("--source", default=DEFAULT_SOURCE, help="vnstock quote source, e.g. KBS.")
+    parser.add_argument(
+        "--symbol", default=DEFAULT_SYMBOL, help="Index symbol for vnstock."
+    )
+    parser.add_argument(
+        "--source", default=DEFAULT_SOURCE, help="vnstock quote source, e.g. KBS."
+    )
     parser.add_argument("--start", default=START_DATE, help="Start date, YYYY-MM-DD.")
     parser.add_argument("--end", default=END_DATE, help="End date, YYYY-MM-DD.")
     parser.add_argument(
@@ -72,7 +76,9 @@ def fetch_prices(symbol: str, source: str, start: str, end: str) -> pd.DataFrame
     )
 
     output["Date"] = pd.to_datetime(output["Date"]).dt.strftime("%Y-%m-%d")
-    output["ACVOL_UNS"] = pd.to_numeric(output["ACVOL_UNS"], errors="coerce").fillna(0).astype("int64")
+    output["ACVOL_UNS"] = (
+        pd.to_numeric(output["ACVOL_UNS"], errors="coerce").fillna(0).astype("int64")
+    )
     return output[OUTPUT_COLUMNS]
 
 
@@ -84,7 +90,7 @@ def main() -> None:
     prices = fetch_prices(args.symbol, args.source, args.start, args.end)
     prices.to_csv(output_path, index=False)
 
-    print(
+    print(  # noqa: print
         f"Wrote {len(prices):,} rows to {output_path} "
         f"for {args.symbol} via {args.source} ({prices['Date'].min()} -> {prices['Date'].max()})"
     )

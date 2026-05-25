@@ -10,7 +10,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.preprocessing.pipeline import (
     ARTICLES_CLEAN_COLUMNS,
@@ -23,6 +22,7 @@ from src.preprocessing.pipeline import (
 # ---------------------------------------------------------------------------
 # Shared synthetic fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_synthetic_news(tmp_path: Path) -> Path:
     """Write a minimal CafeF-style CSV with 20 synthetic articles."""
@@ -133,7 +133,10 @@ def test_build_preprocessed_outputs_end_to_end(tmp_path: Path):
     no_ts = articles_df[articles_df["url"].str.contains("notime")]
     assert len(no_ts) == 1
     assert int(no_ts.iloc[0]["has_timestamp"]) == 0
-    assert no_ts.iloc[0]["alignment_reason"] in {"date_only_same_day", "date_only_forward"}
+    assert no_ts.iloc[0]["alignment_reason"] in {
+        "date_only_same_day",
+        "date_only_forward",
+    }
 
     # Row with published_at should have has_timestamp=1.
     with_ts = articles_df[articles_df["url"].str.contains("test-00a")]
@@ -207,6 +210,7 @@ def test_export_preprocessed_outputs_writes_correct_files(tmp_path: Path):
 
     # Diagnostics JSON should preserve the raw-data-centric contract.
     import json
+
     diag = json.loads(paths["diagnostics"].read_text(encoding="utf-8"))
     assert "raw_news_path" in diag
 
@@ -236,7 +240,9 @@ def test_daily_export_preserves_zero_news_trading_days(tmp_path: Path):
     df.to_csv(news_path, index=False)
 
     prices_path = _make_synthetic_prices(tmp_path)
-    _, daily_df, _ = build_preprocessed_outputs(news_path, prices_path, min_body_len=100)
+    _, daily_df, _ = build_preprocessed_outputs(
+        news_path, prices_path, min_body_len=100
+    )
 
     # All 10 trading days must be present.
     assert len(daily_df) == 10

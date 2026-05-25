@@ -31,6 +31,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import sys
+
 # Add project root to sys.path to allow running this script directly
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
@@ -122,27 +123,39 @@ class Ledger:
             "completed_urls": sorted(self.completed_urls),
             "failed_urls": sorted(self.failed_urls),
         }
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Scrape Vietnamese business news.")
-    parser.add_argument("--start", default=DEFAULT_START, help="Start date, YYYY-MM-DD.")
+    parser.add_argument(
+        "--start", default=DEFAULT_START, help="Start date, YYYY-MM-DD."
+    )
     parser.add_argument("--end", default=DEFAULT_END, help="End date, YYYY-MM-DD.")
     parser.add_argument(
         "--sources",
         default="vnexpress,cafef",
         help="Comma-separated sources: vnexpress,cafef,vietstock.",
     )
-    parser.add_argument("--headful", action="store_true", help="Run Playwright with a visible browser.")
+    parser.add_argument(
+        "--headful", action="store_true", help="Run Playwright with a visible browser."
+    )
     parser.add_argument(
         "--limit-pages",
         type=int,
         default=None,
         help="Cap discovery pages/sitemaps per source for smoke runs.",
     )
-    parser.add_argument("--resume", action="store_true", help="Resume from the persistent URL ledger.")
-    parser.add_argument("--discover-only", action="store_true", help="Only discover URLs and report counts.")
+    parser.add_argument(
+        "--resume", action="store_true", help="Resume from the persistent URL ledger."
+    )
+    parser.add_argument(
+        "--discover-only",
+        action="store_true",
+        help="Only discover URLs and report counts.",
+    )
     return parser.parse_args()
 
 
@@ -276,15 +289,21 @@ def fetch_text(session: requests.Session, url: str, timeout: int = 20) -> str:
     return response.text
 
 
-def parse_article_html(source: str, url: str, html: str, category: str = "") -> Article | None:
+def parse_article_html(
+    source: str, url: str, html: str, category: str = ""
+) -> Article | None:
     soup = BeautifulSoup(html, "html.parser")
     if source == "vnexpress":
         title = clean_text(
-            soup.select_one("h1.title-detail, h1.title_post, h1").get_text(" ", strip=True)
+            soup.select_one("h1.title-detail, h1.title_post, h1").get_text(
+                " ", strip=True
+            )
             if soup.select_one("h1.title-detail, h1.title_post, h1")
             else ""
         )
-        date_node = soup.select_one("meta[name='pubdate'], meta[property='article:published_time']")
+        date_node = soup.select_one(
+            "meta[name='pubdate'], meta[property='article:published_time']"
+        )
         date_text = date_node.get("content") if date_node else ""
         date_text = date_text or clean_text(
             soup.select_one("span.date, .date").get_text(" ", strip=True)
@@ -292,14 +311,18 @@ def parse_article_html(source: str, url: str, html: str, category: str = "") -> 
             else ""
         )
         lead = text_from_selectors(soup, ["p.description"])
-        body = text_from_selectors(soup, ["article.fck_detail p", ".fck_detail > p", ".fck_detail p"])
+        body = text_from_selectors(
+            soup, ["article.fck_detail p", ".fck_detail > p", ".fck_detail p"]
+        )
     elif source == "cafef":
         title = clean_text(
             soup.select_one("h1.title, h1.title_post, h1").get_text(" ", strip=True)
             if soup.select_one("h1.title, h1.title_post, h1")
             else ""
         )
-        date_node = soup.select_one("meta[property='article:published_time'], meta[name='pubdate']")
+        date_node = soup.select_one(
+            "meta[property='article:published_time'], meta[name='pubdate']"
+        )
         date_text = date_node.get("content") if date_node else ""
         date_text = date_text or clean_text(
             soup.select_one(".pdate, .td-post-date, .date").get_text(" ", strip=True)
@@ -307,22 +330,45 @@ def parse_article_html(source: str, url: str, html: str, category: str = "") -> 
             else ""
         )
         lead = text_from_selectors(soup, [".sapo"])
-        body = text_from_selectors(soup, [".detail-content p", ".knc-content p", "[data-role='content'] p", ".content_detail p", "#content_detail p"])
+        body = text_from_selectors(
+            soup,
+            [
+                ".detail-content p",
+                ".knc-content p",
+                "[data-role='content'] p",
+                ".content_detail p",
+                "#content_detail p",
+            ],
+        )
     elif source == "vietstock":
         title = clean_text(
-            soup.select_one("h1.article-title, h1.title-detail, h1").get_text(" ", strip=True)
+            soup.select_one("h1.article-title, h1.title-detail, h1").get_text(
+                " ", strip=True
+            )
             if soup.select_one("h1.article-title, h1.title-detail, h1")
             else ""
         )
-        date_node = soup.select_one("meta[itemprop='datePublished'], meta[property='article:published_time']")
+        date_node = soup.select_one(
+            "meta[itemprop='datePublished'], meta[property='article:published_time']"
+        )
         date_text = date_node.get("content") if date_node else ""
         date_text = date_text or clean_text(
-            soup.select_one(".date, .article-date, .date-published").get_text(" ", strip=True)
+            soup.select_one(".date, .article-date, .date-published").get_text(
+                " ", strip=True
+            )
             if soup.select_one(".date, .article-date, .date-published")
             else ""
         )
         lead = []
-        body = text_from_selectors(soup, [".article-content p", ".article-body p", ".article-content div", ".fck_detail p"])
+        body = text_from_selectors(
+            soup,
+            [
+                ".article-content p",
+                ".article-body p",
+                ".article-content div",
+                ".fck_detail p",
+            ],
+        )
     else:
         raise ValueError(f"Unsupported source: {source}")
 
@@ -351,7 +397,9 @@ def _cafef_day_ranges(year: int, month: int) -> list[tuple[int, int]]:
     return [(1, 5), (6, 10), (11, 15), (16, 20), (21, 25), (26, last_day)]
 
 
-def cafef_sitemap_urls(start: date, end: date, limit_pages: int | None = None) -> list[str]:
+def cafef_sitemap_urls(
+    start: date, end: date, limit_pages: int | None = None
+) -> list[str]:
     session = build_session()
     urls: set[str] = set()
     fetched = 0
@@ -374,14 +422,18 @@ def cafef_sitemap_urls(start: date, end: date, limit_pages: int | None = None) -
             for node in root.iter():
                 if node.tag.endswith("loc") and node.text:
                     url = node.text.strip()
-                    if ".chn" in url and any(keyword in url for keyword in BUSINESS_KEYWORDS):
+                    if ".chn" in url and any(
+                        keyword in url for keyword in BUSINESS_KEYWORDS
+                    ):
                         urls.add(url)
         next_month = current.replace(day=28) + timedelta(days=4)
         current = next_month.replace(day=1)
     return sorted(urls)
 
 
-async def discover_vnexpress_urls(start: date, end: date, headful: bool, limit_pages: int | None) -> list[str]:
+async def discover_vnexpress_urls(
+    start: date, end: date, headful: bool, limit_pages: int | None
+) -> list[str]:
     """Primary: Playwright search.  Fallback: static category listings.
 
     VnExpress yearly article sitemaps exist but are blocked server-side for
@@ -389,7 +441,9 @@ async def discover_vnexpress_urls(start: date, end: date, headful: bool, limit_p
     Playwright-driven search is the reliable primary strategy.
     """
     if async_playwright is None:
-        logging.warning("Playwright is not installed; falling back to static VnExpress listings.")
+        logging.warning(
+            "Playwright is not installed; falling back to static VnExpress listings."
+        )
         return discover_vnexpress_static(start, end, limit_pages)
 
     playwright_urls: set[str] = set()
@@ -410,7 +464,9 @@ async def discover_vnexpress_urls(start: date, end: date, headful: bool, limit_p
                     "&cate_code=&search_f=title,tag_list&date_format=custom"
                 )
                 try:
-                    await page.goto(search_url, wait_until="domcontentloaded", timeout=45_000)
+                    await page.goto(
+                        search_url, wait_until="domcontentloaded", timeout=45_000
+                    )
                     await page.wait_for_timeout(1200)
                     pages_seen += 1
                     while True:
@@ -423,31 +479,46 @@ async def discover_vnexpress_urls(start: date, end: date, headful: bool, limit_p
                             }).filter(Boolean)"""
                         )
                         for href in hrefs:
-                            if "vnexpress.net" in href and re.search(r"\d+\.html$", href):
+                            if "vnexpress.net" in href and re.search(
+                                r"\d+\.html$", href
+                            ):
                                 playwright_urls.add(href)
                         if limit_pages is not None and pages_seen >= limit_pages:
                             break
-                        next_link = page.locator("a.next-page, a.btn-page.next-page, a[rel='next']").first
+                        next_link = page.locator(
+                            "a.next-page, a.btn-page.next-page, a[rel='next']"
+                        ).first
                         if await next_link.count() == 0:
                             break
                         await next_link.click(timeout=5000)
-                        await page.wait_for_load_state("domcontentloaded", timeout=15_000)
+                        await page.wait_for_load_state(
+                            "domcontentloaded", timeout=15_000
+                        )
                         await page.wait_for_timeout(900)
                         pages_seen += 1
                     if limit_pages is not None and pages_seen >= limit_pages:
                         break
                 except PlaywrightTimeoutError as exc:
-                    logging.info("VnExpress search timed out for %s to %s: %s", block_start, block_end, exc)
+                    logging.info(
+                        "VnExpress search timed out for %s to %s: %s",
+                        block_start,
+                        block_end,
+                        exc,
+                    )
         finally:
             await browser.close()
 
     if not playwright_urls:
-        logging.warning("VnExpress Playwright discovery returned no URLs; using static listing fallback.")
+        logging.warning(
+            "VnExpress Playwright discovery returned no URLs; using static listing fallback."
+        )
         return discover_vnexpress_static(start, end, limit_pages)
     return sorted(playwright_urls)
 
 
-def discover_vnexpress_static(start: date, end: date, limit_pages: int | None) -> list[str]:
+def discover_vnexpress_static(
+    start: date, end: date, limit_pages: int | None
+) -> list[str]:
     session = build_session()
     urls: set[str] = set()
     pages_seen = 0
@@ -467,24 +538,42 @@ def discover_vnexpress_static(start: date, end: date, limit_pages: int | None) -
             soup = BeautifulSoup(html, "html.parser")
             page_dates: list[date] = []
             for article_node in soup.select("article[data-publishtime]"):
-                article_date = date_from_unix_seconds(article_node.get("data-publishtime"))
+                article_date = date_from_unix_seconds(
+                    article_node.get("data-publishtime")
+                )
                 if article_date:
                     page_dates.append(article_date)
                 if article_date and article_date > end:
                     continue
                 if article_date and article_date < start:
                     continue
-                anchor = article_node.select_one("h3.title-news a, h2.title-news a, a[href]")
-                normalized = normalize_url("https://vnexpress.net", anchor.get("href") if anchor else None)
-                if normalized and "vnexpress.net" in normalized and re.search(r"\d+\.html$", normalized):
+                anchor = article_node.select_one(
+                    "h3.title-news a, h2.title-news a, a[href]"
+                )
+                normalized = normalize_url(
+                    "https://vnexpress.net", anchor.get("href") if anchor else None
+                )
+                if (
+                    normalized
+                    and "vnexpress.net" in normalized
+                    and re.search(r"\d+\.html$", normalized)
+                ):
                     urls.add(normalized)
                     seen_in_range = True
             # Some listing variants omit data-publishtime; keep a conservative fallback
             # only after we have reached pages that overlap the requested date range.
             if seen_in_range and not page_dates:
-                for anchor in soup.select("h3.title-news a, h2.title-news a, article a"):
-                    normalized = normalize_url("https://vnexpress.net", anchor.get("href"))
-                    if normalized and "vnexpress.net" in normalized and re.search(r"\d+\.html$", normalized):
+                for anchor in soup.select(
+                    "h3.title-news a, h2.title-news a, article a"
+                ):
+                    normalized = normalize_url(
+                        "https://vnexpress.net", anchor.get("href")
+                    )
+                    if (
+                        normalized
+                        and "vnexpress.net" in normalized
+                        and re.search(r"\d+\.html$", normalized)
+                    ):
                         urls.add(normalized)
             if page_dates and max(page_dates) < start:
                 break
@@ -556,9 +645,8 @@ def vietstock_sitemap_urls(limit_pages: int | None = None) -> list[str]:
         for node in child_root.iter():
             if node.tag.endswith("loc") and node.text:
                 url = node.text.strip()
-                if (
-                    re.search(r"\d+\.htm$", url)
-                    and any(keyword in url for keyword in BUSINESS_KEYWORDS)
+                if re.search(r"\d+\.htm$", url) and any(
+                    keyword in url for keyword in BUSINESS_KEYWORDS
                 ):
                     urls.add(url)
     if urls:
@@ -566,7 +654,9 @@ def vietstock_sitemap_urls(limit_pages: int | None = None) -> list[str]:
     return sorted(urls)
 
 
-async def discover_vietstock_urls(start: date, end: date, headful: bool, limit_pages: int | None) -> list[str]:
+async def discover_vietstock_urls(
+    start: date, end: date, headful: bool, limit_pages: int | None
+) -> list[str]:
     """Primary: sitemap over HTTP.  Fallback: Playwright search."""
     urls = vietstock_sitemap_urls(limit_pages)
     if urls:
@@ -595,14 +685,23 @@ async def discover_vietstock_urls(start: date, end: date, headful: bool, limit_p
                         f"&toDate={block_end.strftime('%d/%m/%Y')}"
                     )
                     try:
-                        await page.goto(search_url, wait_until="networkidle", timeout=45_000)
+                        await page.goto(
+                            search_url, wait_until="networkidle", timeout=45_000
+                        )
                         await page.wait_for_timeout(1500)
                         pages_seen += 1
-                        hrefs = await page.locator("div.news-item h2 a, div.news-item h4 a, article a").evaluate_all(
+                        hrefs = await page.locator(
+                            "div.news-item h2 a, div.news-item h4 a, article a"
+                        ).evaluate_all(
                             "(nodes) => nodes.map((node) => node.href).filter(Boolean)"
                         )
                     except PlaywrightTimeoutError as exc:
-                        logging.info("Vietstock search timed out for %s to %s: %s", block_start, block_end, exc)
+                        logging.info(
+                            "Vietstock search timed out for %s to %s: %s",
+                            block_start,
+                            block_end,
+                            exc,
+                        )
                         continue
                     for href in hrefs:
                         if "vietstock.vn" in href and re.search(r"\d+\.htm$", href):
@@ -613,11 +712,15 @@ async def discover_vietstock_urls(start: date, end: date, headful: bool, limit_p
             await browser.close()
 
     if not playwright_urls:
-        logging.warning("Vietstock discovery produced no URLs; source will be skipped as best-effort.")
+        logging.warning(
+            "Vietstock discovery produced no URLs; source will be skipped as best-effort."
+        )
     return sorted(playwright_urls)
 
 
-async def discover_urls(source: str, start: date, end: date, headful: bool, limit_pages: int | None) -> list[str]:
+async def discover_urls(
+    source: str, start: date, end: date, headful: bool, limit_pages: int | None
+) -> list[str]:
     if source == "cafef":
         return cafef_sitemap_urls(start, end, limit_pages)
     if source == "vnexpress":
@@ -686,7 +789,9 @@ async def run_scrape(args: argparse.Namespace) -> dict[str, SourceStats]:
     if start > end:
         raise ValueError("--start must be on or before --end")
 
-    sources = [source.strip().lower() for source in args.sources.split(",") if source.strip()]
+    sources = [
+        source.strip().lower() for source in args.sources.split(",") if source.strip()
+    ]
     unknown = sorted(set(sources) - set(SOURCE_OUTPUTS))
     if unknown:
         raise ValueError(f"Unknown sources: {', '.join(unknown)}")
@@ -725,7 +830,13 @@ def main() -> None:
     setup_logging()
     args = parse_args()
     stats = asyncio.run(run_scrape(args))
-    print(json.dumps({source: asdict(item) for source, item in stats.items()}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {source: asdict(item) for source, item in stats.items()},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

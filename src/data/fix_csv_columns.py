@@ -33,14 +33,15 @@ def fix_csv(file_path: Path) -> None:
     logger.info("Reading %s and writing to %s...", file_path, temp_path)
 
     header_7 = ["url", "source", "category", "title", "date", "published_at", "body"]
-    
+
     total_rows = 0
     padded_rows = 0
     correct_rows = 0
 
-    with open(file_path, "r", encoding="utf-8") as f_in, \
-         open(temp_path, "w", encoding="utf-8", newline="") as f_out:
-        
+    with (
+        open(file_path, "r", encoding="utf-8") as f_in,
+        open(temp_path, "w", encoding="utf-8", newline="") as f_out,
+    ):
         reader = csv.reader(f_in)
         writer = csv.writer(f_out)
 
@@ -64,14 +65,23 @@ def fix_csv(file_path: Path) -> None:
             elif len(row) == 7:
                 correct_rows += 1
             else:
-                logger.warning("Row %d has unexpected column count (%d): %s", total_rows, len(row), row[:2])
-            
+                logger.warning(
+                    "Row %d has unexpected column count (%d): %s",
+                    total_rows,
+                    len(row),
+                    row[:2],
+                )
+
             writer.writerow(row)
             if total_rows % 50000 == 0:
                 logger.info("Processed %d rows...", total_rows)
 
-    logger.info("Finished fixing. Total rows: %d, Padded (old schema): %d, Correct (new schema): %d",
-                total_rows, padded_rows, correct_rows)
+    logger.info(
+        "Finished fixing. Total rows: %d, Padded (old schema): %d, Correct (new schema): %d",
+        total_rows,
+        padded_rows,
+        correct_rows,
+    )
 
     # Rename temp to original
     temp_path.replace(file_path)
@@ -80,13 +90,18 @@ def fix_csv(file_path: Path) -> None:
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Fix mixed-schema CSV files.")
-    parser.add_argument("--file", default="data/raw/news_VN_cafef.csv", help="Path to the CSV file to fix.")
+    parser.add_argument(
+        "--file",
+        default="data/raw/news_VN_cafef.csv",
+        help="Path to the CSV file to fix.",
+    )
     args = parser.parse_args()
-    
+
     csv_path = Path(args.file)
     if not csv_path.exists():
         logger.error("File %s does not exist!", csv_path)
         sys.exit(1)
-        
+
     fix_csv(csv_path)

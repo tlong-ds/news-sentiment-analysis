@@ -5,6 +5,8 @@ from .dataset import (
     aggregate_article_sentiment,
     build_model_frame,
     compute_volatility_features,
+    load_or_build_model_frame,
+    validate_model_frame,
 )
 from .hybrid import (
     GarchFitResult,
@@ -24,4 +26,6 @@ __all__ = [
     "compute_volatility_features",
     "evaluate_forecasts",
     "fit_garch11_baseline",
+    "load_or_build_model_frame",
+    "validate_model_frame",
 ]

@@ -31,11 +31,15 @@ class HybridForecastResult:
     test_rows: int
 
 
-def fit_garch11_baseline(returns: Iterable[float], scale: float = 100.0) -> GarchFitResult:
+def fit_garch11_baseline(
+    returns: Iterable[float], scale: float = 100.0
+) -> GarchFitResult:
     """Estimate a Gaussian GARCH(1,1) model with constrained MLE."""
     series = pd.Series(np.asarray(list(returns), dtype=float)).dropna()
     if len(series) < 30:
-        raise ValueError("GARCH baseline needs at least 30 non-null return observations.")
+        raise ValueError(
+            "GARCH baseline needs at least 30 non-null return observations."
+        )
 
     y = (series.to_numpy(copy=True)) * scale
     sample_var = float(np.var(y, ddof=1))
@@ -125,7 +129,12 @@ def fit_garchx11_baseline(
         sigma2 = np.empty_like(y)
         sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
         for idx in range(1, len(y)):
-            sigma2[idx] = omega + alpha * y[idx - 1] ** 2 + beta * sigma2[idx - 1] + gamma * x_exog[idx - 1]
+            sigma2[idx] = (
+                omega
+                + alpha * y[idx - 1] ** 2
+                + beta * sigma2[idx - 1]
+                + gamma * x_exog[idx - 1]
+            )
             if sigma2[idx] <= 0 or not np.isfinite(sigma2[idx]):
                 return 1e12
 
@@ -150,10 +159,17 @@ def fit_garchx11_baseline(
     sigma2 = np.empty_like(y)
     sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
     for idx in range(1, len(y)):
-        sigma2[idx] = omega + alpha * y[idx - 1] ** 2 + beta * sigma2[idx - 1] + gamma * x_exog[idx - 1]
+        sigma2[idx] = (
+            omega
+            + alpha * y[idx - 1] ** 2
+            + beta * sigma2[idx - 1]
+            + gamma * x_exog[idx - 1]
+        )
 
     forecast = np.empty_like(sigma2)
-    forecast[:-1] = omega + alpha * y[:-1] ** 2 + beta * sigma2[:-1] + gamma * x_exog[:-1]
+    forecast[:-1] = (
+        omega + alpha * y[:-1] ** 2 + beta * sigma2[:-1] + gamma * x_exog[:-1]
+    )
     forecast[-1] = omega + (alpha + beta) * sigma2[-1] + gamma * x_exog[-1]
     standardized = y / np.sqrt(sigma2)
 
@@ -225,7 +241,7 @@ def add_garch_features(
     train_end: str | pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """Append GARCH variance forecasts and residual targets to the model frame.
-    
+
     If train_end is specified, fits parameters omega, alpha, beta, and training
     variance using only returns up to train_end to prevent look-ahead leakage,
     then projects GARCH volatility forecasts and standardized residuals over
@@ -234,34 +250,36 @@ def add_garch_features(
     df = model_df.copy()
     valid_index = df[df[return_column].notna()].index
     series = df.loc[valid_index, return_column]
-    
+
     scale = 100.0
     y = series.to_numpy(copy=True) * scale
-    
+
     if train_end is not None:
         # Identify the training subset using date comparison
-        train_mask = pd.to_datetime(df.loc[valid_index, "date"]) <= pd.Timestamp(train_end)
+        train_mask = pd.to_datetime(df.loc[valid_index, "date"]) <= pd.Timestamp(
+            train_end
+        )
         train_returns = series[train_mask]
-        
+
         # Fit GARCH baseline on training return series only
         garch_train = fit_garch11_baseline(train_returns, scale=scale)
         omega = garch_train.omega
         alpha = garch_train.alpha
         beta = garch_train.beta
-        
+
         # Project over the entire series using fitted parameters
         sample_var = float(np.var(train_returns.to_numpy(copy=True) * scale, ddof=1))
-        
+
         sigma2 = np.empty_like(y)
         sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
         for idx in range(1, len(y)):
             sigma2[idx] = omega + alpha * y[idx - 1] ** 2 + beta * sigma2[idx - 1]
-            
+
         forecast = np.empty_like(sigma2)
         forecast[:-1] = omega + alpha * y[:-1] ** 2 + beta * sigma2[:-1]
         forecast[-1] = omega + (alpha + beta) * sigma2[-1]
         standardized = y / np.sqrt(sigma2)
-        
+
         # Convert variance back to volatility scale
         fitted_vol = np.sqrt(sigma2) / scale
         forecast_vol = np.sqrt(forecast) / scale
@@ -271,15 +289,15 @@ def add_garch_features(
         fitted_vol = np.sqrt(garch.conditional_variance)
         forecast_vol = np.sqrt(garch.variance_forecast)
         standardized = garch.standardized_residuals
-        
+
     fitted = pd.Series(index=df.index, dtype=float)
     forecast_series = pd.Series(index=df.index, dtype=float)
     zscore = pd.Series(index=df.index, dtype=float)
-    
+
     fitted.loc[valid_index] = fitted_vol
     forecast_series.loc[valid_index] = forecast_vol
     zscore.loc[valid_index] = standardized
-    
+
     df["garch_conditional_vol"] = fitted
     df["garch_forecast_vol"] = forecast_series
     df["garch_std_resid"] = zscore
@@ -389,7 +407,9 @@ def train_lstm_residual_model(
             tf.keras.layers.Dense(1),
         ]
     )
-    model.compile(optimizer="adam", loss="mse", metrics=[tf.keras.metrics.MeanAbsoluteError()])
+    model.compile(
+        optimizer="adam", loss="mse", metrics=[tf.keras.metrics.MeanAbsoluteError()]
+    )
 
     callbacks = [
         tf.keras.callbacks.EarlyStopping(
@@ -427,26 +447,28 @@ def evaluate_forecasts(actual: np.ndarray, predicted: np.ndarray) -> dict[str, f
 def validate_garch_fit(result: GarchFitResult) -> dict[str, float | bool]:
     """Perform stationarity and residual diagnostics on the GARCH baseline."""
     from statsmodels.stats.diagnostic import acorr_ljungbox
-    
+
     alpha_plus_beta = result.alpha + result.beta
     stationary = bool(alpha_plus_beta < 1.0)
-    
+
     # Ljung-Box test on squared standardized residuals (checks for remaining ARCH effects)
-    clean_resid = result.standardized_residuals[~np.isnan(result.standardized_residuals)]
-    
-    lb_df = acorr_ljungbox(clean_resid ** 2, lags=[5, 10], return_df=True)
+    clean_resid = result.standardized_residuals[
+        ~np.isnan(result.standardized_residuals)
+    ]
+
+    lb_df = acorr_ljungbox(clean_resid**2, lags=[5, 10], return_df=True)
     p_val_5 = float(lb_df.loc[5, "lb_pvalue"])
     p_val_10 = float(lb_df.loc[10, "lb_pvalue"])
-    
+
     # No remaining ARCH if p-value > 0.05 (fail to reject null of no autocorrelation)
     no_remaining_arch = bool(p_val_5 > 0.05 and p_val_10 > 0.05)
-    
+
     return {
         "alpha_plus_beta": float(alpha_plus_beta),
         "stationary": stationary,
         "ljung_box_pvalue_lag5": p_val_5,
         "ljung_box_pvalue_lag10": p_val_10,
-        "no_remaining_arch_effects": no_remaining_arch
+        "no_remaining_arch_effects": no_remaining_arch,
     }
 
 
@@ -463,10 +485,10 @@ def diebold_mariano_test(
     actual = np.asarray(actual, dtype=float).reshape(-1)
     pred1 = np.asarray(pred_baseline, dtype=float).reshape(-1)
     pred2 = np.asarray(pred_hybrid, dtype=float).reshape(-1)
-    
+
     if len(actual) != len(pred1) or len(actual) != len(pred2):
         raise ValueError("All inputs must have the same length.")
-        
+
     if loss_type == "square":
         d = (actual - pred1) ** 2 - (actual - pred2) ** 2
     elif loss_type == "absolute":
@@ -478,10 +500,10 @@ def diebold_mariano_test(
         )
     else:
         raise ValueError(f"Unknown loss_type: {loss_type}")
-        
+
     mean_d = np.mean(d)
     n = len(d)
-    
+
     # Sample autocovariances up to max_lag
     gamma = np.zeros(max_lag + 1)
     for lag in range(max_lag + 1):
@@ -489,15 +511,22 @@ def diebold_mariano_test(
             gamma[lag] = np.var(d, ddof=0)
         else:
             gamma[lag] = np.mean((d[lag:] - mean_d) * (d[:-lag] - mean_d))
-            
+
     # Newey-West variance estimator
-    var_d = (gamma[0] + 2.0 * np.sum(
-        [((1.0 - (lag / (max_lag + 1))) * gamma[lag]) for lag in range(1, max_lag + 1)]
-    )) / n
-    
+    var_d = (
+        gamma[0]
+        + 2.0
+        * np.sum(
+            [
+                ((1.0 - (lag / (max_lag + 1))) * gamma[lag])
+                for lag in range(1, max_lag + 1)
+            ]
+        )
+    ) / n
+
     if var_d <= 0:
         return 0.0, 1.0
-        
+
     dm_stat = float(mean_d / np.sqrt(var_d))
     # Two-sided p-value
     p_value = float(2.0 * (1.0 - norm.cdf(np.abs(dm_stat))))
@@ -512,58 +541,75 @@ def analyze_forecast_subperiods(
     sentiment: np.ndarray,
 ) -> dict[str, dict[str, float]]:
     """Segment test forecast performance by subperiod regimes and sentiment conditions."""
-    df = pd.DataFrame({
-        "date": pd.to_datetime(dates),
-        "actual": actual.reshape(-1),
-        "baseline": pred_baseline.reshape(-1),
-        "hybrid": pred_hybrid.reshape(-1),
-        "sentiment": sentiment.reshape(-1),
-    })
-    
+    df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(dates),
+            "actual": actual.reshape(-1),
+            "baseline": pred_baseline.reshape(-1),
+            "hybrid": pred_hybrid.reshape(-1),
+            "sentiment": sentiment.reshape(-1),
+        }
+    )
+
     df["year"] = df["date"].dt.year
     df["baseline_error"] = (df["actual"] - df["baseline"]).abs()
     df["hybrid_error"] = (df["actual"] - df["hybrid"]).abs()
-    
+
     analysis = {}
-    
+
     # 1. Year-by-year splits
     for yr in df["year"].unique():
         yr_df = df[df["year"] == yr]
         analysis[f"year_{yr}"] = {
             "size": len(yr_df),
-            "baseline_rmse": float(np.sqrt(np.mean((yr_df["actual"] - yr_df["baseline"])**2))),
-            "hybrid_rmse": float(np.sqrt(np.mean((yr_df["actual"] - yr_df["hybrid"])**2))),
+            "baseline_rmse": float(
+                np.sqrt(np.mean((yr_df["actual"] - yr_df["baseline"]) ** 2))
+            ),
+            "hybrid_rmse": float(
+                np.sqrt(np.mean((yr_df["actual"] - yr_df["hybrid"]) ** 2))
+            ),
             "baseline_mae": float(np.mean(yr_df["baseline_error"])),
             "hybrid_mae": float(np.mean(yr_df["hybrid_error"])),
         }
-        
+
     # 2. Volatility Regimes (Shock vs Calm)
     median_vol = df["actual"].median()
     shock_df = df[df["actual"] > median_vol]
     calm_df = df[df["actual"] <= median_vol]
-    
+
     for label, sub_df in [("shock_regime", shock_df), ("calm_regime", calm_df)]:
         if len(sub_df) > 0:
             analysis[label] = {
                 "size": len(sub_df),
-                "baseline_rmse": float(np.sqrt(np.mean((sub_df["actual"] - sub_df["baseline"])**2))),
-                "hybrid_rmse": float(np.sqrt(np.mean((sub_df["actual"] - sub_df["hybrid"])**2))),
+                "baseline_rmse": float(
+                    np.sqrt(np.mean((sub_df["actual"] - sub_df["baseline"]) ** 2))
+                ),
+                "hybrid_rmse": float(
+                    np.sqrt(np.mean((sub_df["actual"] - sub_df["hybrid"]) ** 2))
+                ),
                 "baseline_mae": float(np.mean(sub_df["baseline_error"])),
                 "hybrid_mae": float(np.mean(sub_df["hybrid_error"])),
             }
-            
+
     # 3. Sentiment Asymmetry (Negative vs Positive sentiment days)
     neg_df = df[df["sentiment"] < -0.05]
     pos_df = df[df["sentiment"] > 0.05]
-    
-    for label, sub_df in [("negative_sentiment_days", neg_df), ("positive_sentiment_days", pos_df)]:
+
+    for label, sub_df in [
+        ("negative_sentiment_days", neg_df),
+        ("positive_sentiment_days", pos_df),
+    ]:
         if len(sub_df) > 0:
             analysis[label] = {
                 "size": len(sub_df),
-                "baseline_rmse": float(np.sqrt(np.mean((sub_df["actual"] - sub_df["baseline"])**2))),
-                "hybrid_rmse": float(np.sqrt(np.mean((sub_df["actual"] - sub_df["hybrid"])**2))),
+                "baseline_rmse": float(
+                    np.sqrt(np.mean((sub_df["actual"] - sub_df["baseline"]) ** 2))
+                ),
+                "hybrid_rmse": float(
+                    np.sqrt(np.mean((sub_df["actual"] - sub_df["hybrid"]) ** 2))
+                ),
                 "baseline_mae": float(np.mean(sub_df["baseline_error"])),
                 "hybrid_mae": float(np.mean(sub_df["hybrid_error"])),
             }
-            
+
     return analysis

@@ -14,6 +14,26 @@ from src.utils.io import read_table
 logger = logging.getLogger(__name__)
 MACRO_CATEGORIES = {"Vĩ mô", "Kinh tế"}
 MARKET_CATEGORIES = {"Chứng khoán", "Thị trường"}
+MODEL_FRAME_REQUIRED_COLUMNS = {
+    "date",
+    "log_return",
+    "abs_return",
+    "target_vol",
+    "target_next_vol",
+    "n_articles",
+    "n_categories",
+    "mean_body_len",
+    "mean_sentiment",
+    "sentiment_std",
+    "sentiment_volume",
+    "negative_share",
+    "neutral_share",
+    "positive_share",
+    "net_sentiment",
+    "sentiment_surprise",
+    "has_sentiment",
+    "has_news",
+}
 
 
 class SentimentAggregationError(ValueError):
@@ -51,7 +71,9 @@ def _resolve_category_frame(
     if articles_clean_df is None or "url" not in sentiment_df.columns:
         return None
 
-    merged_df = sentiment_df.merge(articles_clean_df[["url", "category"]], on="url", how="left")
+    merged_df = sentiment_df.merge(
+        articles_clean_df[["url", "category"]], on="url", how="left"
+    )
     merged_df["category"] = merged_df["category"].fillna("").astype(str)
     return merged_df[["date", "sentiment_score", "category"]]
 
@@ -103,7 +125,10 @@ def aggregate_article_sentiment(
     label_col = "sentiment_label"
     if label_col not in df.columns or sentiment_threshold != 0.05:
         df["sentiment_label"] = np.select(
-            [df["sentiment_score"] > sentiment_threshold, df["sentiment_score"] < -sentiment_threshold],
+            [
+                df["sentiment_score"] > sentiment_threshold,
+                df["sentiment_score"] < -sentiment_threshold,
+            ],
             ["positive", "negative"],
             default="neutral",
         )
@@ -131,9 +156,13 @@ def aggregate_article_sentiment(
         if label not in label_shares.columns:
             label_shares[label] = 0
 
-    label_shares["total_labels"] = label_shares[["negative", "neutral", "positive"]].sum(axis=1)
+    label_shares["total_labels"] = label_shares[
+        ["negative", "neutral", "positive"]
+    ].sum(axis=1)
     for label in ["negative", "neutral", "positive"]:
-        label_shares[f"{label}_share"] = label_shares[label] / label_shares["total_labels"]
+        label_shares[f"{label}_share"] = (
+            label_shares[label] / label_shares["total_labels"]
+        )
 
     daily = grouped.merge(
         label_shares[
@@ -153,7 +182,9 @@ def aggregate_article_sentiment(
     daily["net_sentiment"] = daily["positive_share"] - daily["negative_share"]
 
     # Derived variable: sentiment_surprise = mean_sentiment - rolling_5day_mean_sentiment
-    prior_mean = daily["mean_sentiment"].shift(1).rolling(window=5, min_periods=1).mean()
+    prior_mean = (
+        daily["mean_sentiment"].shift(1).rolling(window=5, min_periods=1).mean()
+    )
     daily["sentiment_surprise"] = daily["mean_sentiment"] - prior_mean.fillna(0.0)
 
     # Derived variables: category-specific sentiment (macro & market)
@@ -190,7 +221,9 @@ def aggregate_article_sentiment(
     return daily.sort_values("date").reset_index(drop=True)
 
 
-def compute_volatility_features(df: pd.DataFrame, target_type: str = "parkinson") -> pd.DataFrame:
+def compute_volatility_features(
+    df: pd.DataFrame, target_type: str = "parkinson"
+) -> pd.DataFrame:
     """Compute returns, Parkinson, Garman-Klass, and z-score features from raw prices."""
     # Ensure columns are standardized
     rename_map = {
@@ -227,18 +260,18 @@ def compute_volatility_features(df: pd.DataFrame, target_type: str = "parkinson"
             - (2 * np.log(2) - 1) * np.log(df["close"] / df["open"]).pow(2),
         )
     )
-    
+
     if target_type == "parkinson":
         df["target_vol"] = df["parkinson_vol"].fillna(df["abs_return"])
     elif target_type == "garman_klass":
         df["target_vol"] = df["gk_vol"].fillna(df["abs_return"])
     else:
         raise ValueError(f"Unknown target_type: {target_type}")
-        
+
     df["target_next_vol"] = df["target_vol"].shift(-1)
-    df["volume_zscore_21"] = (
-        (df["volume"] - df["volume"].rolling(21).mean()) / df["volume"].rolling(21).std()
-    )
+    df["volume_zscore_21"] = (df["volume"] - df["volume"].rolling(21).mean()) / df[
+        "volume"
+    ].rolling(21).std()
     return df
 
 
@@ -289,7 +322,11 @@ def build_model_frame(
     # Count of zero-news trading days is 4 out of 2498 (0.16%). Since this is
     # well under the 5% threshold, zero-imputation is a highly defensible
     # approximation for missing sentiment control features.
-    zero_news_mask = model_df["sentiment_volume"].fillna(0).eq(0) if "sentiment_volume" in model_df.columns else pd.Series(False, index=model_df.index)
+    zero_news_mask = (
+        model_df["sentiment_volume"].fillna(0).eq(0)
+        if "sentiment_volume" in model_df.columns
+        else pd.Series(False, index=model_df.index)
+    )
     fill_defaults = {
         "n_articles": 0,
         "n_categories": 0,
@@ -309,7 +346,9 @@ def build_model_frame(
 
     for column in ["macro_sentiment", "market_sentiment"]:
         if column in model_df.columns:
-            model_df.loc[zero_news_mask, column] = model_df.loc[zero_news_mask, column].fillna(0.0)
+            model_df.loc[zero_news_mask, column] = model_df.loc[
+                zero_news_mask, column
+            ].fillna(0.0)
 
     for column in ["macro_sentiment_missing", "market_sentiment_missing"]:
         if column in model_df.columns:
@@ -322,3 +361,48 @@ def build_model_frame(
     )
     model_df["has_news"] = model_df["has_sentiment"]
     return model_df.sort_values("date").reset_index(drop=True)
+
+
+def validate_model_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Validate and normalize a modeling-ready frame artifact."""
+    missing = sorted(MODEL_FRAME_REQUIRED_COLUMNS - set(df.columns))
+    if missing:
+        raise ValueError(
+            "Model frame is missing required columns: "
+            f"{missing}. Rebuild the artifact from prices, daily news, and "
+            "sentiment inference outputs."
+        )
+
+    validated = df.copy()
+    validated["date"] = pd.to_datetime(validated["date"])
+    return validated.sort_values("date").reset_index(drop=True)
+
+
+def load_or_build_model_frame(
+    *,
+    model_frame_path: str | Path | None = None,
+    price_path: str | Path | None = None,
+    daily_news_path: str | Path | None = None,
+    sentiment_path: str | Path | None = None,
+    articles_clean_path: str | Path | None = None,
+    sentiment_threshold: float = 0.05,
+    target_type: str = "parkinson",
+) -> pd.DataFrame:
+    """Prefer a persisted modeling-ready parquet, otherwise rebuild the frame."""
+    if model_frame_path is not None and Path(model_frame_path).exists():
+        logger.info("Loading modeling-ready frame from %s", model_frame_path)
+        return validate_model_frame(read_table(model_frame_path))
+
+    if price_path is None:
+        raise ValueError(
+            "Provide price_path when model_frame_path is missing or does not exist."
+        )
+
+    return build_model_frame(
+        price_path,
+        daily_news_path=daily_news_path,
+        sentiment_path=sentiment_path,
+        articles_clean_path=articles_clean_path,
+        sentiment_threshold=sentiment_threshold,
+        target_type=target_type,
+    )

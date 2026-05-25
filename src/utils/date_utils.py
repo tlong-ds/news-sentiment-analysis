@@ -15,6 +15,7 @@ from typing import Iterable
 # Parsing helpers
 # ---------------------------------------------------------------------------
 
+
 def parse_iso_date(value: str) -> date:
     """Parse a ``YYYY-MM-DD`` string into a :class:`date`."""
     return datetime.strptime(value, "%Y-%m-%d").date()
@@ -63,6 +64,7 @@ def unix_seconds(day: date, end_of_day: bool = False) -> int:
 # Date-range iteration
 # ---------------------------------------------------------------------------
 
+
 def date_blocks(start: date, end: date, days: int) -> Iterable[tuple[date, date]]:
     """Yield ``(block_start, block_end)`` tuples spanning *start* to *end*."""
     current = start
@@ -77,6 +79,7 @@ def month_ranges(start: date, end: date) -> Iterable[tuple[date, date]]:
     current = start.replace(day=1)
     while current <= end:
         import calendar
+
         _, last_day = calendar.monthrange(current.year, current.month)
         month_end = current.replace(day=last_day)
         yield max(current, start), min(month_end, end)

@@ -13,7 +13,7 @@ import logging
 from dataclasses import asdict, dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Iterable, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 CSV_COLUMNS = ["url", "source", "category", "title", "date", "published_at", "body"]
 
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Core data model
 # ---------------------------------------------------------------------------
+
 
 @dataclass(slots=True)
 class Article:
@@ -46,13 +47,16 @@ class Article:
 # Source protocol
 # ---------------------------------------------------------------------------
 
+
 @runtime_checkable
 class NewsSource(Protocol):
     """Interface that every ingestion source must satisfy."""
 
     name: str
 
-    def discover(self, start: date, end: date, *, limit_pages: int | None = None) -> list[str]:
+    def discover(
+        self, start: date, end: date, *, limit_pages: int | None = None
+    ) -> list[str]:
         """Return a list of article identifiers (URLs, IDs, etc.)."""
         ...
 
@@ -64,6 +68,7 @@ class NewsSource(Protocol):
 # ---------------------------------------------------------------------------
 # Resume ledger (shared across sources)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class Ledger:
@@ -88,12 +93,15 @@ class Ledger:
             "completed_urls": sorted(self.completed_urls),
             "failed_urls": sorted(self.failed_urls),
         }
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Shared I/O helpers
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SourceStats:

@@ -15,7 +15,8 @@ def test_prepare_cafef_inputs_builds_expected_columns(tmp_path: Path):
                 "date": "2024-01-02",
                 "trading_date": "2024-01-02",
                 "title": "Lợi nhuận tăng mạnh",
-                "body_clean": "Doanh nghiệp ghi nhận lợi nhuận tăng trưởng mạnh trong quý này." * 4,
+                "body_clean": "Doanh nghiệp ghi nhận lợi nhuận tăng trưởng mạnh trong quý này."
+                * 4,
             }
         ]
     )
@@ -52,7 +53,8 @@ def test_prepare_cafef_inputs_requires_parquet_input(tmp_path: Path):
                 "date": "2024-01-02",
                 "trading_date": "2024-01-02",
                 "title": "Lợi nhuận tăng mạnh",
-                "body_clean": "Doanh nghiệp ghi nhận lợi nhuận tăng trưởng mạnh trong quý này." * 4,
+                "body_clean": "Doanh nghiệp ghi nhận lợi nhuận tăng trưởng mạnh trong quý này."
+                * 4,
             }
         ]
     )

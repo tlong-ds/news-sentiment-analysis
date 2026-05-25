@@ -19,11 +19,10 @@ import json
 import logging
 import sys
 from dataclasses import asdict
-from datetime import date
 from pathlib import Path
 
 from src.config import RAW_DATA_DIR, SOURCE_OUTPUTS, START_DATE, END_DATE
-from src.ingestion.base import Article, CSV_COLUMNS, Ledger, SourceStats
+from src.ingestion.base import CSV_COLUMNS, Ledger, SourceStats
 from src.utils.date_utils import parse_iso_date
 
 # Increase CSV field size limit to handle very large article bodies
@@ -41,12 +40,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Vietnamese financial news ingestion pipeline."
     )
-    parser.add_argument(
-        "--start", default=START_DATE, help="Start date, YYYY-MM-DD."
-    )
-    parser.add_argument(
-        "--end", default=END_DATE, help="End date, YYYY-MM-DD."
-    )
+    parser.add_argument("--start", default=START_DATE, help="Start date, YYYY-MM-DD.")
+    parser.add_argument("--end", default=END_DATE, help="End date, YYYY-MM-DD.")
     parser.add_argument(
         "--sources",
         default="cafef,vnstock",
@@ -103,7 +98,9 @@ def _merge_and_deduplicate(data_dir: Path) -> int:
             with source_path.open("r", encoding="utf-8") as inp:
                 reader = csv.DictReader(inp)
                 for row in reader:
-                    key = f"{row.get('title', '').strip().lower()}|{row.get('date', '')}"
+                    key = (
+                        f"{row.get('title', '').strip().lower()}|{row.get('date', '')}"
+                    )
                     h = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
                     if h in seen_hashes:
                         continue
@@ -165,7 +162,6 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, SourceStats]:
                 discover_only=args.discover_only,
             )
         else:
-
             logger.warning("Skipping unknown source: %s", source)
             continue
 

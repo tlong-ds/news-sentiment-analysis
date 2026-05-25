@@ -21,7 +21,12 @@ underthesea
 python-dotenv
 vncorenlp
 kaggle
+mlflow
+dagshub
 
 # data version control
 dvc
 dvc-gdrive
+
+# Development tools
+ruff

@@ -233,9 +233,13 @@ def _fallback_row_id(row: pd.Series, provider: str, row_number: int) -> str:
     return str(row_number)
 
 
-def _provider_url(row: pd.Series, provider: str, symbol: str, row_number: int) -> tuple[str, bool]:
+def _provider_url(
+    row: pd.Series, provider: str, symbol: str, row_number: int
+) -> tuple[str, bool]:
     """Return (url, is_real_url) for a normalized row."""
-    url = _first_present(row, ("url", "news_source_link", "newsSourceLink", "source_url", "link"))
+    url = _first_present(
+        row, ("url", "news_source_link", "newsSourceLink", "source_url", "link")
+    )
     if url:
         return url, True
 
@@ -363,12 +367,16 @@ def run_vnstock(
     """
     stats = SourceStats()
     target_symbols = symbols or VNSTOCK_SYMBOLS
-    target_providers = [provider.upper() for provider in (providers or VNSTOCK_PROVIDER_ORDER)]
+    target_providers = [
+        provider.upper() for provider in (providers or VNSTOCK_PROVIDER_ORDER)
+    ]
     output_file = Path(RAW_DATA_DIR) / SOURCE_OUTPUTS["vnstock"]
     all_articles: list[Article] = []
 
     for symbol in target_symbols:
-        logger.info("vnstock: fetching news for %s via %s", symbol, ",".join(target_providers))
+        logger.info(
+            "vnstock: fetching news for %s via %s", symbol, ",".join(target_providers)
+        )
         df, provider_used, fallback_index, failures, capped = _fetch_ticker_news(
             symbol,
             start,
@@ -384,10 +392,16 @@ def run_vnstock(
         time.sleep(2.0)
 
         if df.empty:
-            logger.info("vnstock: no news returned for %s after providers %s", symbol, ",".join(target_providers))
+            logger.info(
+                "vnstock: no news returned for %s after providers %s",
+                symbol,
+                ",".join(target_providers),
+            )
             continue
 
-        logger.info("vnstock: %s returned %d raw rows for %s", provider_used, len(df), symbol)
+        logger.info(
+            "vnstock: %s returned %d raw rows for %s", provider_used, len(df), symbol
+        )
         if capped:
             stats.capped_symbols += 1
             logger.warning(
@@ -399,7 +413,9 @@ def run_vnstock(
                 page_size,
             )
 
-        articles, metrics = _dataframe_to_articles(df, symbol, provider_used or "UNKNOWN")
+        articles, metrics = _dataframe_to_articles(
+            df, symbol, provider_used or "UNKNOWN"
+        )
         stats.discovered_urls += len(articles)
         stats.rows_with_real_urls += metrics.rows_with_real_urls
         stats.rows_with_published_at += metrics.rows_with_published_at

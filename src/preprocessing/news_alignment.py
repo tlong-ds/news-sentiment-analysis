@@ -37,9 +37,17 @@ def _next_trading_day(
         return pd.NaT
 
     pos = trading_index.searchsorted(origin_day)
-    if include_same_day and pos < len(trading_index) and trading_index[pos] == origin_day:
+    if (
+        include_same_day
+        and pos < len(trading_index)
+        and trading_index[pos] == origin_day
+    ):
         return trading_index[pos]
-    if not include_same_day and pos < len(trading_index) and trading_index[pos] == origin_day:
+    if (
+        not include_same_day
+        and pos < len(trading_index)
+        and trading_index[pos] == origin_day
+    ):
         pos += 1
     if pos >= len(trading_index):
         return pd.NaT
@@ -71,7 +79,12 @@ def align_articles_to_trading_day(
         raise ValueError(f"Expected at least one of {date_col!r} or {timestamp_col!r}.")
 
     aligned = news_df.copy()
-    trading_index = pd.DatetimeIndex(pd.to_datetime(trading_dates)).normalize().sort_values().unique()
+    trading_index = (
+        pd.DatetimeIndex(pd.to_datetime(trading_dates))
+        .normalize()
+        .sort_values()
+        .unique()
+    )
     if trading_index.empty:
         raise ValueError("trading_dates cannot be empty.")
 
@@ -88,7 +101,9 @@ def align_articles_to_trading_day(
 
     has_timestamp = published_at.notna()
     origin_dates = pd.Series(calendar_dates, index=aligned.index)
-    origin_dates.loc[has_timestamp] = published_at.loc[has_timestamp].dt.tz_localize(None).dt.normalize()
+    origin_dates.loc[has_timestamp] = (
+        published_at.loc[has_timestamp].dt.tz_localize(None).dt.normalize()
+    )
     is_trading_origin = origin_dates.isin(trading_index)
     is_after_close = pd.Series(False, index=aligned.index)
     if has_timestamp.any():
@@ -110,16 +125,22 @@ def align_articles_to_trading_day(
             continue
 
         if trading_origin and not after_close:
-            trading_days.append(_next_trading_day(origin_day, trading_index, include_same_day=True))
+            trading_days.append(
+                _next_trading_day(origin_day, trading_index, include_same_day=True)
+            )
             reasons.append("same_session" if has_time else "date_only_same_day")
             continue
 
         if trading_origin and after_close:
-            trading_days.append(_next_trading_day(origin_day, trading_index, include_same_day=False))
+            trading_days.append(
+                _next_trading_day(origin_day, trading_index, include_same_day=False)
+            )
             reasons.append("after_close_forward")
             continue
 
-        trading_days.append(_next_trading_day(origin_day, trading_index, include_same_day=True))
+        trading_days.append(
+            _next_trading_day(origin_day, trading_index, include_same_day=True)
+        )
         reasons.append("non_trading_forward" if has_time else "date_only_forward")
 
     aligned["origin_date"] = origin_dates
@@ -149,9 +170,11 @@ def aggregate_daily_news(aligned_df: pd.DataFrame) -> pd.DataFrame:
             raise ValueError("Need one of 'body_len', 'body_clean', or 'body'.")
         aggregated["body_len"] = aggregated[text_col].fillna("").astype(str).str.len()
 
-    aggregated["is_non_trading_origin"] = aggregated["alignment_reason"].isin(
-        {"non_trading_forward", "date_only_forward"}
-    ).astype(int)
+    aggregated["is_non_trading_origin"] = (
+        aggregated["alignment_reason"]
+        .isin({"non_trading_forward", "date_only_forward"})
+        .astype(int)
+    )
 
     daily = (
         aggregated.dropna(subset=["trading_date"])

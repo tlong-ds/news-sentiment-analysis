@@ -33,7 +33,6 @@ import csv
 import json
 import logging
 import re
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -106,6 +105,7 @@ _RE_WHITESPACE = re.compile(r"\s+")
 # Text cleaning
 # ---------------------------------------------------------------------------
 
+
 def _clean_body(text: str) -> str:
     """Strip HTML, URLs, emails, and normalize whitespace.
 
@@ -127,6 +127,7 @@ def _clean_body(text: str) -> str:
 # ---------------------------------------------------------------------------
 # Price loading
 # ---------------------------------------------------------------------------
+
 
 def _load_prices(price_path: Path) -> pd.DataFrame:
     """Load VN-Index price CSV and compute ``log_return``.
@@ -165,6 +166,7 @@ def _load_prices(price_path: Path) -> pd.DataFrame:
 # Raw news loading
 # ---------------------------------------------------------------------------
 
+
 def _load_raw_news(raw_news_path: Path) -> pd.DataFrame:
     """Load raw CafeF news CSV, tolerating a missing ``published_at`` column.
 
@@ -201,6 +203,7 @@ def _load_raw_news(raw_news_path: Path) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # Main builder
 # ---------------------------------------------------------------------------
+
 
 def build_preprocessed_outputs(
     raw_news_path: str | Path,
@@ -328,13 +331,11 @@ def build_preprocessed_outputs(
     timestamp_share = float(has_timestamp_series.mean()) if len(aligned) > 0 else 0.0
     date_only_share = 1.0 - timestamp_share
 
-    after_close_count = int(
-        aligned["alignment_reason"].eq("after_close_forward").sum()
-    )
+    after_close_count = int(aligned["alignment_reason"].eq("after_close_forward").sum())
     non_trading_count = int(
-        aligned["alignment_reason"].isin(
-            {"non_trading_forward", "date_only_forward"}
-        ).sum()
+        aligned["alignment_reason"]
+        .isin({"non_trading_forward", "date_only_forward"})
+        .sum()
     )
 
     price_row_count = len(prices)
@@ -382,6 +383,7 @@ def build_preprocessed_outputs(
 # ---------------------------------------------------------------------------
 # Export helper
 # ---------------------------------------------------------------------------
+
 
 def export_preprocessed_outputs(
     articles_df: pd.DataFrame,
@@ -434,6 +436,7 @@ def export_preprocessed_outputs(
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(

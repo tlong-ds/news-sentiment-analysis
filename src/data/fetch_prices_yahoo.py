@@ -17,7 +17,7 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
-from src.config import RAW_DATA_DIR, END_DATE, START_DATE
+from src.config import RAW_DATA_DIR, START_DATE
 
 YAHOO_TICKER = "^VNINDEX.VN"
 OUTPUT_NAME = "prices_VN.csv"
@@ -87,7 +87,9 @@ def fetch_prices(ticker: str, start: str, end: str) -> pd.DataFrame:
     )
 
     output["Date"] = pd.to_datetime(output["Date"]).dt.strftime("%Y-%m-%d")
-    output["ACVOL_UNS"] = pd.to_numeric(output["ACVOL_UNS"], errors="coerce").fillna(0).astype("int64")
+    output["ACVOL_UNS"] = (
+        pd.to_numeric(output["ACVOL_UNS"], errors="coerce").fillna(0).astype("int64")
+    )
     return output[OUTPUT_COLUMNS]
 
 
@@ -99,7 +101,7 @@ def main() -> None:
     prices = fetch_prices(args.ticker, args.start, args.end)
     prices.to_csv(output_path, index=False)
 
-    print(
+    print(  # noqa: print
         f"Wrote {len(prices):,} rows to {output_path} "
         f"for {args.ticker} ({prices['Date'].min()} -> {prices['Date'].max()})"
     )

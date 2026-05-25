@@ -25,9 +25,7 @@ from bs4 import BeautifulSoup
 
 from src.config import (
     BUSINESS_KEYWORDS,
-    CAFEF_BASE_URL,
     RAW_DATA_DIR,
-    REQUEST_DELAY_SECONDS,
     SOURCE_OUTPUTS,
     USER_AGENT,
 )
@@ -40,6 +38,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # HTTP helpers
 # ---------------------------------------------------------------------------
+
 
 def _build_session() -> requests.Session:
     session = requests.Session()
@@ -63,6 +62,7 @@ def _fetch_text(session: requests.Session, url: str, timeout: int = 20) -> str:
 # ---------------------------------------------------------------------------
 # Text extraction helpers
 # ---------------------------------------------------------------------------
+
 
 def _clean_text(value: str | None) -> str:
     if not value:
@@ -90,6 +90,7 @@ def _infer_category(url: str, fallback: str = "Kinh doanh") -> str:
 # ---------------------------------------------------------------------------
 # Sitemap discovery
 # ---------------------------------------------------------------------------
+
 
 def _day_ranges(year: int, month: int) -> list[tuple[int, int]]:
     """Return the 5-day block ranges CafeF uses for a given month.
@@ -148,6 +149,7 @@ def cafef_sitemap_urls(
 # Article parsing
 # ---------------------------------------------------------------------------
 
+
 def parse_cafef_article(url: str, html: str) -> Article | None:
     """Parse a CafeF article detail page into an ``Article``.
 
@@ -166,7 +168,9 @@ def parse_cafef_article(url: str, html: str) -> Article | None:
     date_text = date_node.get("content") if date_node else ""
     if not date_text:
         fallback_node = soup.select_one(".pdate, .td-post-date, .date")
-        date_text = _clean_text(fallback_node.get_text(" ", strip=True) if fallback_node else "")
+        date_text = _clean_text(
+            fallback_node.get_text(" ", strip=True) if fallback_node else ""
+        )
 
     # Body
     lead = _text_from_selectors(soup, [".sapo"])
@@ -201,6 +205,7 @@ def parse_cafef_article(url: str, html: str) -> Article | None:
 # Full pipeline: discover → parse → write
 # ---------------------------------------------------------------------------
 
+
 def run_cafef(
     start: date,
     end: date,
@@ -225,7 +230,6 @@ def run_cafef(
 
     stats = SourceStats()
     ledger = ledger or Ledger()
-    session = _build_session()
 
     logger.info("CafeF: discovering article URLs (%s to %s)", start, end)
     urls = cafef_sitemap_urls(start, end, limit_pages=limit_pages)
@@ -251,7 +255,9 @@ def run_cafef(
     output_file = Path(RAW_DATA_DIR) / SOURCE_OUTPUTS["cafef"]
     batch: list[Article] = []
 
-    def fetch_and_parse(target_url: str) -> tuple[str, Article | None, Exception | None]:
+    def fetch_and_parse(
+        target_url: str,
+    ) -> tuple[str, Article | None, Exception | None]:
         # Local session per thread for safety
         thread_session = _build_session()
         try:
@@ -262,15 +268,19 @@ def run_cafef(
 
     processed = 0
     with ThreadPoolExecutor(max_workers=15) as executor:
-        futures = {executor.submit(fetch_and_parse, url): url for url in urls_to_process}
-        
+        futures = {
+            executor.submit(fetch_and_parse, url): url for url in urls_to_process
+        }
+
         for future in as_completed(futures):
             processed += 1
             if processed % 1000 == 0:
-                logger.info("CafeF: processed %d / %d articles", processed, len(urls_to_process))
-                
+                logger.info(
+                    "CafeF: processed %d / %d articles", processed, len(urls_to_process)
+                )
+
             url, article, exc = future.result()
-            
+
             if exc:
                 logger.debug("CafeF detail failed %s: %s", url, exc)
                 ledger.failed_urls.add(url)
@@ -304,6 +314,10 @@ def run_cafef(
 
     if batch:
         append_articles(output_file, batch)
-        
-    logger.info("CafeF: %d articles parsed, %d failed", stats.parsed_articles, stats.failed_pages)
+
+    logger.info(
+        "CafeF: %d articles parsed, %d failed",
+        stats.parsed_articles,
+        stats.failed_pages,
+    )
     return stats

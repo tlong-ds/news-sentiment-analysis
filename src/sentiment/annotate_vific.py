@@ -44,7 +44,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Dual-LLM annotation for ViFiC sample rows.")
     parser.add_argument("--input-file", default=f"{ANNOTATION_DATA_DIR}/vific_annotation_sample.csv")
     parser.add_argument("--llm-a-model", default="gemini-2.0-flash-lite")
-    parser.add_argument("--llm-b-model", default="gemini-2.5-flash")
+    parser.add_argument("--llm-b-model", default="gemini-2.0-flash")
+
     parser.add_argument("--llm-a-output", default=f"{ANNOTATION_DATA_DIR}/llm_a_raw_responses.jsonl")
     parser.add_argument("--llm-b-output", default=f"{ANNOTATION_DATA_DIR}/llm_b_raw_responses.jsonl")
     parser.add_argument("--api-key-a", default=os.getenv("GEMINI_API_KEY", ""))

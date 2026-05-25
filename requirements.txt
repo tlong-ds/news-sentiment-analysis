@@ -20,6 +20,8 @@ tqdm
 underthesea
 python-dotenv
 vncorenlp
+kaggle
 
 # data version control
 dvc
+dvc-gdrive

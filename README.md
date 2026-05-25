@@ -128,6 +128,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## Data version control
+
+Large raw datasets are managed with DVC and stored on the configured Google
+Drive remote for the repo.
+
 ## Main Commands
 
 ### 1. Rebuild cleaned datasets

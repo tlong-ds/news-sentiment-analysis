@@ -4,17 +4,18 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
-# Main work directory (CafeF and VN-Index prices)
-MAIN_DATA_DIR = os.path.join(DATA_DIR, "main")
-RAW_DATA_DIR = os.path.join(MAIN_DATA_DIR, "raw")
-PROCESSED_DATA_DIR = os.path.join(MAIN_DATA_DIR, "processed")
-CAFEF_DATA_DIR = os.path.join(MAIN_DATA_DIR, "cafef")
+RAW_DATA_DIR = os.path.join(DATA_DIR, "raw")
+INTERIM_DATA_DIR = os.path.join(DATA_DIR, "interim")
+SENTIMENT_DATA_DIR = os.path.join(DATA_DIR, "sentiment")
+PROCESSED_DATA_DIR = os.path.join(DATA_DIR, "processed")
+CAFEF_DATA_DIR = INTERIM_DATA_DIR
 MODELS_DATA_DIR = os.path.join(BASE_DIR, "models")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(RAW_DATA_DIR, exist_ok=True)
+os.makedirs(INTERIM_DATA_DIR, exist_ok=True)
+os.makedirs(SENTIMENT_DATA_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
-os.makedirs(CAFEF_DATA_DIR, exist_ok=True)
 os.makedirs(MODELS_DATA_DIR, exist_ok=True)
 
 

@@ -17,19 +17,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build the merged modeling frame used by volatility scripts."
     )
-    parser.add_argument("--prices", default="data/main/raw/prices_VN.csv")
+    parser.add_argument("--prices", default="data/raw/prices_VN.csv")
     parser.add_argument(
-        "--daily-news", default="data/main/processed/daily_news_prices.parquet"
+        "--daily-news", default="data/interim/daily_news_prices.parquet"
     )
     parser.add_argument(
-        "--sentiment", default="data/main/processed/article_sentiment_scores.parquet"
+        "--sentiment", default="data/sentiment/article_sentiment_scores.parquet"
     )
     parser.add_argument(
-        "--articles-clean", default="data/main/processed/articles_clean.parquet"
+        "--articles-clean", default="data/interim/articles_clean.parquet"
     )
-    parser.add_argument(
-        "--output-file", default="data/main/processed/modeling_ready.parquet"
-    )
+    parser.add_argument("--output-file", default="data/interim/modeling_ready.parquet")
     parser.add_argument("--target-type", default="parkinson")
     parser.add_argument("--sentiment-threshold", type=float, default=0.05)
     return parser.parse_args()

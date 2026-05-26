@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.config import CAFEF_DATA_DIR, PROCESSED_DATA_DIR
+from src.config import CAFEF_DATA_DIR, INTERIM_DATA_DIR
 from src.sentiment.common import (
     body_lead,
     build_input_text,
@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
         description="Prepare CafeF sentiment input tables."
     )
     parser.add_argument(
-        "--cafef-input", default=f"{PROCESSED_DATA_DIR}/articles_clean.parquet"
+        "--cafef-input", default=f"{INTERIM_DATA_DIR}/articles_clean.parquet"
     )
     parser.add_argument(
         "--cafef-output", default=f"{CAFEF_DATA_DIR}/cafef_input.parquet"

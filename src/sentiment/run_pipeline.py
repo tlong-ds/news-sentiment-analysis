@@ -15,7 +15,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from src.config import CAFEF_DATA_DIR, MODELS_DATA_DIR, PROCESSED_DATA_DIR
+from src.config import (
+    CAFEF_DATA_DIR,
+    MODELS_DATA_DIR,
+    INTERIM_DATA_DIR,
+    SENTIMENT_DATA_DIR,
+)
 from src.sentiment.common import LABELED_REQUIRED_COLUMNS, default_model_dir
 from src.tracking import (
     add_tracking_arguments,
@@ -59,19 +64,19 @@ def parse_args() -> argparse.Namespace:
         "--merged-labeled-output", default=f"{CAFEF_DATA_DIR}/training_labeled.parquet"
     )
     parser.add_argument(
-        "--cafef-input", default=f"{PROCESSED_DATA_DIR}/articles_clean.parquet"
+        "--cafef-input", default=f"{INTERIM_DATA_DIR}/articles_clean.parquet"
     )
-    parser.add_argument("--prices-file", default="data/main/raw/prices_VN.csv")
+    parser.add_argument("--prices-file", default="data/raw/prices_VN.csv")
     parser.add_argument(
         "--cafef-prepared-output", default=f"{CAFEF_DATA_DIR}/cafef_input.parquet"
     )
     parser.add_argument(
         "--sentiment-output",
-        default=f"{PROCESSED_DATA_DIR}/article_sentiment_scores.parquet",
+        default=f"{SENTIMENT_DATA_DIR}/article_sentiment_scores.parquet",
     )
     parser.add_argument(
         "--model-frame-output",
-        default=f"{PROCESSED_DATA_DIR}/modeling_ready.parquet",
+        default=f"{INTERIM_DATA_DIR}/modeling_ready.parquet",
     )
     parser.add_argument("--daily-news-file")
     parser.add_argument("--batch-size", type=int, default=32)

@@ -173,8 +173,8 @@ def main() -> None:
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
 
-    sentiment_path = "data/main/processed/article_sentiment_scores.parquet"
-    summary_path = "data/main/processed/robustness_experiment_summary.json"
+    sentiment_path = "data/sentiment/article_sentiment_scores.parquet"
+    summary_path = "data/interim/robustness_experiment_summary.json"
 
     output_dir = Path("report/figures")
     output_dir.mkdir(parents=True, exist_ok=True)

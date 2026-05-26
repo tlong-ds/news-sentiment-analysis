@@ -49,10 +49,10 @@ class SentimentFrameSpec:
 def _resolve_default_articles_clean_path(price_path: str | Path) -> Path | None:
     price_parent = Path(price_path).parent
     candidates = [
-        price_parent.parent / "processed" / "articles_clean.parquet",
-        price_parent.parent / "processed" / "articles_clean.csv",
-        Path("data/main/processed/articles_clean.parquet"),
-        Path("data/main/processed/articles_clean.csv"),
+        price_parent.parent / "interim" / "articles_clean.parquet",
+        price_parent.parent / "interim" / "articles_clean.csv",
+        Path("data/interim/articles_clean.parquet"),
+        Path("data/interim/articles_clean.csv"),
         Path("data/processed/articles_clean.parquet"),
         Path("data/processed/articles_clean.csv"),
     ]

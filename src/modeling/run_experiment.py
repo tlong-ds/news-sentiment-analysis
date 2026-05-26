@@ -35,12 +35,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a two-stage GARCH plus sentiment-LSTM volatility experiment."
     )
-    parser.add_argument("--prices", default="data/main/raw/prices_VN.csv")
+    parser.add_argument("--prices", default="data/raw/prices_VN.csv")
+    parser.add_argument("--model-frame", default="data/interim/modeling_ready.parquet")
     parser.add_argument(
-        "--model-frame", default="data/main/processed/modeling_ready.parquet"
-    )
-    parser.add_argument(
-        "--daily-news", default="data/main/processed/daily_news_prices.parquet"
+        "--daily-news", default="data/interim/daily_news_prices.parquet"
     )
     parser.add_argument(
         "--sentiment",
@@ -49,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--articles-clean",
-        default="data/main/processed/articles_clean.parquet",
+        default="data/interim/articles_clean.parquet",
         help="Parquet with article-level metadata including categories (used to extract macro/market subsets).",
     )
     parser.add_argument("--sequence-length", type=int, default=15)
@@ -63,7 +61,7 @@ def parse_args() -> argparse.Namespace:
         help="Build the experiment frame and evaluate the GARCH baseline without training the LSTM.",
     )
     parser.add_argument(
-        "--output", default="data/main/processed/hybrid_experiment_summary.json"
+        "--output", default="data/interim/hybrid_experiment_summary.json"
     )
     add_tracking_arguments(parser)
 

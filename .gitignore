@@ -21,10 +21,10 @@ tmp/*
 !tmp/.gitkeep
 
 # Generated news scrape outputs and ledgers
-data/main/raw/news_VN_*.csv
-data/main/raw/news_scrape_ledger.json
-data/main/raw/urls_*.txt
-!data/main/raw/.gitkeep
+data/raw/news_VN_*.csv
+data/raw/news_scrape_ledger.json
+data/raw/urls_*.txt
+!data/raw/.gitkeep
 
 # Large raw datasets
 data/vific/fine-tunes/ViFiC-120M/*
@@ -34,10 +34,12 @@ data/vific/fine-tunes/ViFiC-93M/*
 data/archive.zip
 
 # Processed data, models, and logs (ignore contents but keep structure)
-data/main/processed/*
-!data/main/processed/.gitkeep
-data/main/cafef/*
-!data/main/cafef/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
+data/sentiment/*
+!data/sentiment/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
 data/vific/processed/*
 !data/vific/processed/.gitkeep
 data/vific/annotation/*

@@ -12,7 +12,7 @@ import pandas as pd
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-from src.config import CAFEF_DATA_DIR, MODELS_DATA_DIR, PROCESSED_DATA_DIR
+from src.config import CAFEF_DATA_DIR, MODELS_DATA_DIR, SENTIMENT_DATA_DIR
 from src.sentiment.common import (
     ID_TO_LABEL,
     default_model_dir,
@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input-file", default=f"{CAFEF_DATA_DIR}/cafef_input.parquet")
     parser.add_argument(
         "--output-file",
-        default=f"{PROCESSED_DATA_DIR}/article_sentiment_scores.parquet",
+        default=f"{SENTIMENT_DATA_DIR}/article_sentiment_scores.parquet",
     )
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--max-length", type=int, default=256)

@@ -8,7 +8,6 @@ Runs Ruff for style and standard checks, then performs custom AST analysis to:
 """
 
 import ast
-import os
 import subprocess
 import sys
 from pathlib import Path

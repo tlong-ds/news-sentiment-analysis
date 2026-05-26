@@ -115,7 +115,7 @@ def test_{name}_basic_behavior():
     src_file.write_text(src_content, encoding="utf-8")
     test_file.write_text(test_content, encoding="utf-8")
 
-    print(f"Successfully scaffolded components:")
+    print("Successfully scaffolded components:")
     print(f"  [NEW] Source: {src_file.relative_to(root_dir)}")
     print(f"  [NEW] Test:   {test_file.relative_to(root_dir)}")
 

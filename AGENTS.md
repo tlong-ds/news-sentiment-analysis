@@ -8,16 +8,16 @@ Core code lives in `src/`. The main paths are:
 - `src/sentiment/`: supervised PhoBERT-style training, bootstrap labeling, inference, and validation.
 - `src/modeling/`: dataset assembly and volatility experiments.
 
-Tests live in `tests/`, with fixtures in `tests/fixtures/`. Data artifacts are staged under `data/main/processed/` and `data/main/cafef/`. Notebooks in `notebooks/` are for inspection, not the primary production contract. The report sources live in `report/`.
+Tests live in `tests/`, with fixtures in `tests/fixtures/`. Data artifacts are staged under `data/raw/`, `data/interim/`, and `data/sentiment/`. Notebooks in `notebooks/` are for inspection, not the primary production contract. The report sources live in `report/`.
 
 ## Build, Test, and Development Commands
 
 Install dependencies with `pip install -r requirements.txt`.
 
 Key workflows:
-- `python -m src.preprocessing.pipeline --raw-news data/raw/news_VN_cafef.csv --prices data/raw/prices_VN.csv --out-dir data/main/processed`
+- `python -m src.preprocessing.pipeline --raw-news data/raw/news_VN_cafef.csv --prices data/raw/prices_VN.csv --out-dir data/interim`
   Builds `articles_clean.parquet` and `daily_news_prices.parquet`.
-- `python -m src.sentiment.run_pipeline --mode train --training-input data/main/cafef/training_input.parquet --labeled-input data/main/cafef/training_annotations.csv --model-dir models/phobert-sentiment/latest`
+- `python -m src.sentiment.run_pipeline --mode train --training-input data/interim/training_input.parquet --labeled-input data/interim/training_annotations.csv --model-dir models/phobert-sentiment/latest`
   Prepares training data and trains the classifier.
 - `python -m src.sentiment.run_pipeline --mode infer --model-dir models/phobert-sentiment/latest`
   Runs CafeF inference and validation.

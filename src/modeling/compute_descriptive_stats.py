@@ -34,10 +34,10 @@ def ljung_box_test(x: np.ndarray, lags: list[int]) -> dict[int, tuple[float, flo
 
 def main() -> None:
     # 1. Paths
-    prices_path = Path("data/main/raw/prices_VN.csv")
-    articles_path = Path("data/main/processed/articles_clean.parquet")
-    sentiment_path = Path("data/main/processed/article_sentiment_scores.parquet")
-    daily_news_path = Path("data/main/processed/daily_news_prices.parquet")
+    prices_path = Path("data/raw/prices_VN.csv")
+    articles_path = Path("data/interim/articles_clean.parquet")
+    sentiment_path = Path("data/sentiment/article_sentiment_scores.parquet")
+    daily_news_path = Path("data/interim/daily_news_prices.parquet")
 
     output_dir = Path("report/tables")
     output_dir.mkdir(parents=True, exist_ok=True)

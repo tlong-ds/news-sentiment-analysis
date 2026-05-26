@@ -10,15 +10,15 @@ This repo uses one local CLI-first sentiment pipeline for article-level classifi
 python -m src.preprocessing.pipeline \
   --raw-news data/raw/news_VN_cafef.csv \
   --prices data/raw/prices_VN.csv \
-  --out-dir data/main/processed
+  --out-dir data/interim
 ```
 
 2. Prepare a normalized training corpus with the required article-level schema:
 
 ```bash
 python -m src.sentiment.prepare_training_data \
-  --input-file data/main/cafef/training_input.parquet \
-  --output-file data/main/cafef/training_corpus.parquet
+  --input-file data/interim/training_input.parquet \
+  --output-file data/interim/training_corpus.parquet
 ```
 
 Required training columns:
@@ -40,20 +40,20 @@ The labeled corpus adds:
 
 ```bash
 python -m src.sentiment.sample_annotation \
-  --input-file data/main/cafef/training_corpus.parquet \
-  --output-file data/main/cafef/annotation_sample.csv
+  --input-file data/interim/training_corpus.parquet \
+  --output-file data/interim/annotation_sample.csv
 
 python -m src.sentiment.merge_annotations \
-  --corpus-file data/main/cafef/training_corpus.parquet \
-  --annotations-file data/main/cafef/training_annotations.csv \
-  --output-file data/main/cafef/training_labeled.parquet
+  --corpus-file data/interim/training_corpus.parquet \
+  --annotations-file data/interim/training_annotations.csv \
+  --output-file data/interim/training_labeled.parquet
 ```
 
 4. Train a 3-label PhoBERT-compatible classifier checkpoint:
 
 ```bash
 python -m src.sentiment.train_classifier \
-  --labeled-input data/main/cafef/training_labeled.parquet \
+  --labeled-input data/interim/training_labeled.parquet \
   --output-dir models/phobert-sentiment/latest
 ```
 
@@ -67,27 +67,27 @@ python -m src.sentiment.run_pipeline \
   --model-dir models/phobert-sentiment/latest
 ```
 
-This inference flow now also writes `data/main/processed/modeling_ready.parquet`, the merged volatility-modeling frame with price features, news intensity features, and inferred sentiment features.
+This inference flow now also writes `data/interim/modeling_ready.parquet`, the merged volatility-modeling frame with price features, news intensity features, and inferred sentiment features.
 
 6. Orchestrate end to end from the same CLI:
 
 ```bash
 python -m src.sentiment.run_pipeline \
   --mode train \
-  --training-input data/main/cafef/training_input.parquet \
-  --labeled-input data/main/cafef/training_annotations.csv \
+  --training-input data/interim/training_input.parquet \
+  --labeled-input data/interim/training_annotations.csv \
   --model-dir models/phobert-sentiment/latest
 
 python -m src.sentiment.run_pipeline \
   --mode full \
-  --training-input data/main/cafef/training_input.parquet \
-  --labeled-input data/main/cafef/training_annotations.csv \
+  --training-input data/interim/training_input.parquet \
+  --labeled-input data/interim/training_annotations.csv \
   --model-dir models/phobert-sentiment/latest
 ```
 
 ## Sentiment Contract
 
-- `src.sentiment.prepare_inputs` prepares unlabeled CafeF inference rows from `data/main/processed/articles_clean.parquet`.
+- `src.sentiment.prepare_inputs` prepares unlabeled CafeF inference rows from `data/interim/articles_clean.parquet`.
 - `src.sentiment.infer_cafef` resolves `--model-dir` first, otherwise defaults to `models/phobert-sentiment/latest`.
 - `src.sentiment.validate_inference` rejects stale 4-column `article_sentiment_scores.parquet` outputs and requires:
   - `url`
@@ -102,15 +102,16 @@ python -m src.sentiment.run_pipeline \
 
 ## Main Artifacts
 
-- `data/main/processed/articles_clean.parquet`
-- `data/main/processed/daily_news_prices.parquet`
-- `data/main/cafef/cafef_input.parquet`
-- `data/main/processed/article_sentiment_scores.parquet`
-- `data/main/processed/modeling_ready.parquet`
-- `data/main/processed/sentiment_inference_validation.json`
-- `data/main/processed/daily_aggregation_validation.json`
+- `data/interim/articles_clean.parquet`
+- `data/interim/daily_news_prices.parquet`
+- `data/interim/cafef_input.parquet`
+- `data/sentiment/article_sentiment_scores.parquet`
+- `data/interim/modeling_ready.parquet`
+- `data/interim/sentiment_inference_validation.json`
+- `data/interim/daily_aggregation_validation.json`
 - `models/phobert-sentiment/latest/`
 
 ## Modeling
 
-Volatility scripts should use `data/main/processed/modeling_ready.parquet` as the default modeling input after sentiment inference. If that artifact is missing, the modeling CLIs can still rebuild the frame from prices, `daily_news_prices.parquet`, and `article_sentiment_scores.parquet`.
+## Volatility Modeling Input
+Volatility scripts should use `data/interim/modeling_ready.parquet` as the default modeling input after sentiment inference. If that artifact is missing, the modeling CLIs can still rebuild the frame from prices, `daily_news_prices.parquet`, and `article_sentiment_scores.parquet`.

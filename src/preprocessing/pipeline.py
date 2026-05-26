@@ -390,7 +390,7 @@ def export_preprocessed_outputs(
     daily_df: pd.DataFrame,
     diagnostics: dict[str, Any],
     *,
-    out_dir: str | Path = "data/main/processed",
+    out_dir: str | Path = "data/interim",
 ) -> dict[str, Path]:
     """Write processed outputs and diagnostics to disk.
 
@@ -444,18 +444,18 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--raw-news",
-        default="data/main/raw/news_VN_cafef.csv",
-        help="Path to raw CafeF news CSV (default: data/main/raw/news_VN_cafef.csv).",
+        default="data/raw/news_VN_cafef.csv",
+        help="Path to raw CafeF news CSV (default: data/raw/news_VN_cafef.csv).",
     )
     parser.add_argument(
         "--prices",
-        default="data/main/raw/prices_VN.csv",
-        help="Path to VN-Index price CSV (default: data/main/raw/prices_VN.csv).",
+        default="data/raw/prices_VN.csv",
+        help="Path to VN-Index price CSV (default: data/raw/prices_VN.csv).",
     )
     parser.add_argument(
         "--out-dir",
-        default="data/main/processed",
-        help="Output directory for processed files (default: data/main/processed).",
+        default="data/interim",
+        help="Output directory for processed files (default: data/interim).",
     )
 
     parser.add_argument(

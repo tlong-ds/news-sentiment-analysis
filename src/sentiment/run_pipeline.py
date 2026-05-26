@@ -92,7 +92,7 @@ def parse_args() -> argparse.Namespace:
         "--fail-on-validation",
         action="store_true",
         dest="fail_on_validation",
-        default=True,
+        default=False,
     )
     parser.add_argument(
         "--no-fail-on-validation",

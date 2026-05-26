@@ -33,21 +33,55 @@ def get_vncorenlp_annotator() -> VnCoreNLP | None:
         return _vncorenlp_annotator
     if VnCoreNLP is None:
         return None
+
+    import contextlib
+    import logging
     import os
+    import subprocess
 
-    jar_path = VNCORENLP_JAR_PATH
-    if os.path.exists(jar_path):
+    def _ensure_java_on_path() -> None:
         try:
-            _vncorenlp_annotator = VnCoreNLP(jar_path, annotators="wseg")
-            return _vncorenlp_annotator
-        except Exception as e:
-            import logging
-
-            logging.getLogger(__name__).warning(
-                "Failed to initialize VnCoreNLP, falling back to underthesea: %s", e
+            subprocess.check_call(
+                ["java", "-version"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
-            return None
-    return None
+            return
+        except Exception:
+            pass
+
+        conda_prefix = os.environ.get("CONDA_PREFIX")
+        if not conda_prefix:
+            return
+
+        conda_java_bin = os.path.join(conda_prefix, "lib", "jvm", "bin")
+        if not os.path.exists(os.path.join(conda_java_bin, "java")):
+            return
+
+        os.environ["PATH"] = conda_java_bin + os.pathsep + os.environ.get("PATH", "")
+        os.environ.setdefault("JAVA_HOME", os.path.join(conda_prefix, "lib", "jvm"))
+
+    jar_path = os.path.abspath(VNCORENLP_JAR_PATH)
+    if not os.path.exists(jar_path):
+        return None
+
+    _ensure_java_on_path()
+
+    jar_dir = os.path.dirname(jar_path)
+    jar_name = os.path.basename(jar_path)
+
+    try:
+        cwd = os.getcwd()
+        with contextlib.ExitStack() as stack:
+            stack.callback(lambda: os.chdir(cwd))
+            os.chdir(jar_dir)
+            _vncorenlp_annotator = VnCoreNLP(jar_name, annotators="wseg")
+        return _vncorenlp_annotator
+    except Exception as e:
+        logging.getLogger(__name__).warning(
+            "Failed to initialize VnCoreNLP, falling back to underthesea: %s", e
+        )
+        return None
 
 
 SENTIMENT_LABELS = ["negative", "neutral", "positive"]

@@ -63,3 +63,7 @@ report/*.pdf
 .env
 .envrc
 
+# VnCoreNLP local artifacts (downloaded JAR + models)
+vncorenlp/*.jar
+vncorenlp/models/
+

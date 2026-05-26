@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+# ruff: noqa: E402
+
+import tensorflow as tf
+
+# Initialize TensorFlow backend/thread pools to prevent OpenMP deadlocks on macOS
+_ = tf.keras.layers.Dense(1)(tf.zeros((1, 1)))
+
 import argparse
 import json
 import logging

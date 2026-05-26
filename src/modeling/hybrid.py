@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-import os
+# ruff: noqa: E402
 
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
+import tensorflow as tf
+
+# Initialize TensorFlow backend/thread pools to prevent OpenMP deadlocks on macOS
+_ = tf.keras.layers.Dense(1)(tf.zeros((1, 1)))
 
 from dataclasses import dataclass
 from typing import Iterable

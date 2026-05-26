@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
-
 import json
 from dataclasses import dataclass
 from pathlib import Path

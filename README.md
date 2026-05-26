@@ -69,6 +69,13 @@ python -m src.sentiment.run_pipeline \
 
 This inference flow now also writes `data/interim/modeling_ready.parquet`, the merged volatility-modeling frame with price features, news intensity features, and inferred sentiment features.
 
+Optional: merge article-level sentiment back into the cleaned articles parquet for inspection and category-based features:
+
+```bash
+python -m src.sentiment.merge_sentiment_with_articles \
+  --how left
+```
+
 6. Orchestrate end to end from the same CLI:
 
 ```bash
@@ -106,6 +113,7 @@ python -m src.sentiment.run_pipeline \
 - `data/interim/daily_news_prices.parquet`
 - `data/interim/cafef_input.parquet`
 - `data/sentiment/article_sentiment_scores.parquet`
+- `data/interim/articles_with_sentiment.parquet` (optional)
 - `data/interim/modeling_ready.parquet`
 - `data/interim/sentiment_inference_validation.json`
 - `data/interim/daily_aggregation_validation.json`

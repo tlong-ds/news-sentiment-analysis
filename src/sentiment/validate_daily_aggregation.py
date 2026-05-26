@@ -7,7 +7,7 @@ import json
 import logging
 
 
-from src.config import PROCESSED_DATA_DIR
+from src.config import INTERIM_DATA_DIR, SENTIMENT_DATA_DIR
 from src.modeling.dataset import aggregate_article_sentiment
 from src.sentiment.validate_inference import validate_sentiment_schema
 from src.utils.io import read_parquet_table
@@ -21,11 +21,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--sentiment-file",
-        default=f"{PROCESSED_DATA_DIR}/article_sentiment_scores.parquet",
+        default=f"{SENTIMENT_DATA_DIR}/article_sentiment_scores.parquet",
     )
     parser.add_argument(
         "--output-file",
-        default=f"{PROCESSED_DATA_DIR}/daily_aggregation_validation.json",
+        default=f"{INTERIM_DATA_DIR}/daily_aggregation_validation.json",
     )
     return parser.parse_args()
 

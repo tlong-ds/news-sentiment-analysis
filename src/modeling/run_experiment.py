@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+# ruff: noqa: E402
+
+import tensorflow as tf
+
+# Initialize TensorFlow backend/thread pools to prevent OpenMP deadlocks on macOS
+_ = tf.keras.layers.Dense(1)(tf.zeros((1, 1)))
+
 import argparse
 import json
 import logging
@@ -99,7 +106,9 @@ def main() -> None:
             sentiment_path=args.sentiment,
             articles_clean_path=args.articles_clean,
         )
+        logging.info("Model frame loaded. Fitting baseline GARCH features...")
         model_df = add_garch_features(model_df, train_end=args.train_end)
+        logging.info("GARCH features added. Building LSTM sequences...")
 
         feature_columns = [
             "garch_std_resid",
@@ -128,6 +137,9 @@ def main() -> None:
             sequence_length=args.sequence_length,
             split_dates=(args.train_end, args.val_end),
         )
+        logging.info(
+            "LSTM sequences built. Fitting GARCH baseline directly on training window..."
+        )
 
         baseline = sequences["baseline_test"]
         actual = sequences["realized_test"]
@@ -138,6 +150,7 @@ def main() -> None:
         ]["log_return"]
         garch_result = fit_garch11_baseline(train_returns)
         garch_diagnostics = validate_garch_fit(garch_result)
+        logging.info("GARCH diagnostics computed.")
 
         summary = {
             "feature_columns": meta.feature_columns,
@@ -154,11 +167,13 @@ def main() -> None:
         if args.prepare_only:
             summary["status"] = "prepared_without_lstm"
         else:
+            logging.info("Training LSTM residual correction model...")
             lstm_model, history = train_lstm_residual_model(
                 sequences,
                 epochs=args.epochs,
                 batch_size=args.batch_size,
             )
+            logging.info("LSTM training completed. Evaluating forecasts...")
 
             residual_pred = (
                 lstm_model(sequences["x_test"], training=False).numpy().reshape(-1, 1)

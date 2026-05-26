@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.config import PROCESSED_DATA_DIR
+from src.config import INTERIM_DATA_DIR, SENTIMENT_DATA_DIR
 from src.modeling.dataset import aggregate_article_sentiment
 from src.sentiment.common import INFERENCE_REQUIRED_COLUMNS
 from src.utils.io import read_parquet_table
@@ -23,18 +23,18 @@ def parse_args() -> argparse.Namespace:
         description="Validate article-level sentiment inference output."
     )
     parser.add_argument(
-        "--articles-file", default=f"{PROCESSED_DATA_DIR}/articles_clean.parquet"
+        "--articles-file", default=f"{INTERIM_DATA_DIR}/articles_clean.parquet"
     )
     parser.add_argument(
         "--sentiment-file",
-        default=f"{PROCESSED_DATA_DIR}/article_sentiment_scores.parquet",
+        default=f"{SENTIMENT_DATA_DIR}/article_sentiment_scores.parquet",
     )
     parser.add_argument(
-        "--daily-news-file", default=f"{PROCESSED_DATA_DIR}/daily_news_prices.parquet"
+        "--daily-news-file", default=f"{INTERIM_DATA_DIR}/daily_news_prices.parquet"
     )
     parser.add_argument(
         "--report-file",
-        default=f"{PROCESSED_DATA_DIR}/sentiment_inference_validation.json",
+        default=f"{INTERIM_DATA_DIR}/sentiment_inference_validation.json",
     )
     parser.add_argument("--fail-on-validation", action="store_true")
     return parser.parse_args()

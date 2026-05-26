@@ -14,7 +14,7 @@ from src.sentiment.common import (
     body_lead,
     build_input_text,
     count_tokens,
-    segment_text,
+    normalize_text,
     token_stats,
 )
 from src.utils.io import read_parquet_table
@@ -79,8 +79,9 @@ def _prepare_frame(
         build_input_text(title, lead)
         for title, lead in zip(prepared["title"], prepared["body_lead"])
     ]
-    prepared["input_text_segmented"] = prepared["input_text"].map(segment_text)
-    prepared["token_count"] = prepared["input_text_segmented"].map(count_tokens)
+    prepared["token_count"] = (
+        prepared["input_text"].map(normalize_text).map(count_tokens)
+    )
 
     if include_url:
         prepared["url"] = df["url"].astype(str)
@@ -141,7 +142,6 @@ def prepare_cafef_inputs(
         "title",
         "body_lead",
         "input_text",
-        "input_text_segmented",
         "token_count",
     ]
     prepared = prepared[front_cols]

@@ -82,11 +82,6 @@ VNSTOCK_PROVIDER_ORDER = ["VCI", "KBS"]
 VNSTOCK_PAGE_SIZE = 50
 VNSTOCK_MAX_PAGES = 10
 
-# --- VnCoreNLP Configuration ---
-VNCORENLP_JAR_PATH = os.environ.get(
-    "VNCORENLP_JAR_PATH", os.path.join(BASE_DIR, "vncorenlp", "VnCoreNLP-1.1.1.jar")
-)
-
 # --- Output files ---
 SOURCE_OUTPUTS = {
     "cafef": "news_VN_cafef.csv",

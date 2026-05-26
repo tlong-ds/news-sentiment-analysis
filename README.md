@@ -30,7 +30,6 @@ Required training columns:
 - `title`
 - `body_text`
 - `input_text`
-- `input_text_segmented`
 
 The labeled corpus adds:
 

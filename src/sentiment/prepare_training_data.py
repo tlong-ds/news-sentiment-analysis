@@ -17,8 +17,6 @@ from src.sentiment.common import (
     ensure_parent_dir,
     normalize_label,
     normalize_text,
-    normalize_presegmented_text,
-    segment_text,
     validate_required_columns,
 )
 from src.utils.io import read_table
@@ -45,11 +43,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-file", required=True)
     parser.add_argument("--report-file")
     parser.add_argument("--max-body-chars", type=int, default=1200)
-    parser.add_argument(
-        "--skip-segmentation",
-        action="store_true",
-        help="Skip word segmentation (fast mode) and keep normalized input_text as input_text_segmented.",
-    )
     return parser.parse_args()
 
 
@@ -61,7 +54,7 @@ def _normalize_published_at(series: pd.Series) -> pd.Series:
 
 
 def prepare_training_dataframe(
-    df: pd.DataFrame, *, max_body_chars: int = 1200, skip_segmentation: bool = False
+    df: pd.DataFrame, *, max_body_chars: int = 1200
 ) -> pd.DataFrame:
     base_required = [
         "article_id",
@@ -95,14 +88,6 @@ def prepare_training_dataframe(
         build_input_text(title, body_text)
         for title, body_text in zip(prepared["title"], prepared["body_text"])
     ]
-    if skip_segmentation:
-        # Fast mode: preserve normalized input text (no word-segmentation). Useful for quick corpus prep.
-        prepared["input_text_segmented"] = prepared["input_text"].map(
-            normalize_presegmented_text
-        )
-    else:
-        prepared["input_text_segmented"] = prepared["input_text"].map(segment_text)
-
     if prepared["article_id"].duplicated().any():
         duplicates = (
             prepared.loc[prepared["article_id"].duplicated(), "article_id"]
@@ -209,7 +194,6 @@ def combine_training_sources(
     extra_url_column: str = "url",
     max_date: str | None = None,
     max_body_chars: int = 1200,
-    skip_segmentation: bool = False,
 ) -> pd.DataFrame:
     frames = [normalize_cafef_training_corpus(cafef_df)]
     if extra_df is not None:
@@ -235,9 +219,7 @@ def combine_training_sources(
         raise ValueError(
             f"Combined training corpus contains duplicate article_id values across inputs: {duplicates[:10]}"
         )
-    return prepare_training_dataframe(
-        combined, max_body_chars=max_body_chars, skip_segmentation=skip_segmentation
-    )
+    return prepare_training_dataframe(combined, max_body_chars=max_body_chars)
 
 
 def build_report(prepared: pd.DataFrame) -> dict:
@@ -272,7 +254,6 @@ def main() -> None:
         prepared = prepare_training_dataframe(
             df,
             max_body_chars=args.max_body_chars,
-            skip_segmentation=args.skip_segmentation,
         )
     else:
         if not args.cafef_input:
@@ -290,7 +271,6 @@ def main() -> None:
             extra_url_column=args.extra_url_column,
             max_date=args.max_date,
             max_body_chars=args.max_body_chars,
-            skip_segmentation=args.skip_segmentation,
         )
     output_path = ensure_parent_dir(args.output_file)
     prepared.to_parquet(output_path, index=False)

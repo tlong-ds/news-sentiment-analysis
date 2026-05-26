@@ -132,7 +132,6 @@ def sample_annotation_frame(
         "title",
         "body_text",
         "input_text",
-        "input_text_segmented",
     ]
     if "source_dataset" in sample.columns:
         export_cols.append("source_dataset")

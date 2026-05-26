@@ -82,7 +82,7 @@ def _build_dataset(
     shuffle: bool,
 ) -> tf.data.Dataset:
     encodings = tokenizer(
-        df["input_text_segmented"].astype(str).tolist(),
+        df["input_text"].astype(str).tolist(),
         truncation=True,
         padding=True,
         max_length=max_length,
@@ -143,7 +143,7 @@ def predict_dataset_probabilities(
 
 
 def build_training_report(df: pd.DataFrame, evaluation: dict) -> dict:
-    token_counts = df["input_text_segmented"].astype(str).str.split().map(len)
+    token_counts = df["input_text"].astype(str).str.split().map(len)
     report = {
         "rows": int(len(df)),
         "splits": df["split"].value_counts().to_dict(),

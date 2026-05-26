@@ -91,7 +91,7 @@ def main() -> None:
     df = read_parquet_table(args.input_file)
     validate_required_columns(
         df,
-        {"url", "trading_date", "category", "input_text_segmented"},
+        {"url", "trading_date", "category", "input_text"},
         dataset_name="CafeF inference input",
     )
     tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
@@ -111,7 +111,7 @@ def main() -> None:
     for start in range(start_offset, len(df), args.batch_size):
         batch_df = df.iloc[start : start + args.batch_size].copy()
         probabilities = predict_probabilities(
-            batch_df["input_text_segmented"].astype(str).tolist(),
+            batch_df["input_text"].astype(str).tolist(),
             model=model,
             tokenizer=tokenizer,
             max_length=args.max_length,

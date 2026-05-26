@@ -36,7 +36,6 @@ def test_prepare_cafef_inputs_builds_expected_columns(tmp_path: Path):
         "title",
         "body_lead",
         "input_text",
-        "input_text_segmented",
         "token_count",
     ]
     assert prepared.loc[0, "article_id"] == "u1"

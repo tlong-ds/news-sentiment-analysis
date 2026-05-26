@@ -12,77 +12,6 @@ import numpy as np
 import pandas as pd
 from transformers import AutoConfig
 
-try:
-    import underthesea
-except ImportError:  # pragma: no cover - fallback used when dependency is absent
-    underthesea = None
-
-try:
-    from vncorenlp import VnCoreNLP
-except ImportError:
-    VnCoreNLP = None
-
-from src.config import VNCORENLP_JAR_PATH
-
-_vncorenlp_annotator = None
-
-
-def get_vncorenlp_annotator() -> VnCoreNLP | None:
-    global _vncorenlp_annotator
-    if _vncorenlp_annotator is not None:
-        return _vncorenlp_annotator
-    if VnCoreNLP is None:
-        return None
-
-    import contextlib
-    import logging
-    import os
-    import subprocess
-
-    def _ensure_java_on_path() -> None:
-        try:
-            subprocess.check_call(
-                ["java", "-version"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            return
-        except Exception:
-            pass
-
-        conda_prefix = os.environ.get("CONDA_PREFIX")
-        if not conda_prefix:
-            return
-
-        conda_java_bin = os.path.join(conda_prefix, "lib", "jvm", "bin")
-        if not os.path.exists(os.path.join(conda_java_bin, "java")):
-            return
-
-        os.environ["PATH"] = conda_java_bin + os.pathsep + os.environ.get("PATH", "")
-        os.environ.setdefault("JAVA_HOME", os.path.join(conda_prefix, "lib", "jvm"))
-
-    jar_path = os.path.abspath(VNCORENLP_JAR_PATH)
-    if not os.path.exists(jar_path):
-        return None
-
-    _ensure_java_on_path()
-
-    jar_dir = os.path.dirname(jar_path)
-    jar_name = os.path.basename(jar_path)
-
-    try:
-        cwd = os.getcwd()
-        with contextlib.ExitStack() as stack:
-            stack.callback(lambda: os.chdir(cwd))
-            os.chdir(jar_dir)
-            _vncorenlp_annotator = VnCoreNLP(jar_name, annotators="wseg")
-        return _vncorenlp_annotator
-    except Exception as e:
-        logging.getLogger(__name__).warning(
-            "Failed to initialize VnCoreNLP, falling back to underthesea: %s", e
-        )
-        return None
-
 
 SENTIMENT_LABELS = ["negative", "neutral", "positive"]
 LABEL_TO_ID = {label: idx for idx, label in enumerate(SENTIMENT_LABELS)}
@@ -95,7 +24,6 @@ TRAINING_REQUIRED_COLUMNS = [
     "title",
     "body_text",
     "input_text",
-    "input_text_segmented",
 ]
 LABELED_REQUIRED_COLUMNS = TRAINING_REQUIRED_COLUMNS + ["label", "split"]
 INFERENCE_REQUIRED_COLUMNS = [
@@ -122,38 +50,6 @@ class PreparedInputRow:
     title: str
     body_text: str
     input_text: str
-    input_text_segmented: str
-
-
-def segment_text(text: str) -> str:
-    """Word-segment text for PhoBERT, falling back to underthesea or whitespace normalization."""
-    normalized = " ".join(str(text or "").split())
-    if not normalized:
-        return ""
-
-    annotator = get_vncorenlp_annotator()
-    if annotator is not None:
-        try:
-            sentences = annotator.tokenize(normalized)
-            words = []
-            for sentence in sentences:
-                words.extend(sentence)
-            return " ".join(words)
-        except Exception as e:
-            import logging
-
-            logging.getLogger(__name__).warning(
-                "VnCoreNLP tokenization failed, falling back: %s", e
-            )
-
-    if underthesea is None:
-        return normalized
-    return underthesea.word_tokenize(normalized, format="text")
-
-
-def normalize_presegmented_text(text: str) -> str:
-    """Normalize already segmented text while preserving PhoBERT-style underscores."""
-    return " ".join(str(text or "").split())
 
 
 def normalize_text(text: str) -> str:

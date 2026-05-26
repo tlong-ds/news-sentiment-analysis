@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import os
+
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
+
 import argparse
 import json
 import logging

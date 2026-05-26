@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -405,10 +406,30 @@ def test_bootstrap_labels_and_review_merge_path():
         max_date="2024-12-31",
     )
 
+    article_ids = corpus_df["article_id"].tolist()
+
     def fake_runner(prompt: str, spec: ModelSpec) -> str:
-        if "Doanh nghiep doi mat ap luc" in prompt:
-            return '{"label":"negative","confidence":0.91,"rationale":"ap luc chi phi"}'
-        return '{"label":"neutral","confidence":0.62,"rationale":"thong tin can bang"}'
+        payload = []
+        for idx, article_id in enumerate(article_ids):
+            if idx == 0:
+                payload.append(
+                    {
+                        "article_id": article_id,
+                        "label": "negative",
+                        "confidence": 0.91,
+                        "rationale": "ap luc chi phi",
+                    }
+                )
+            else:
+                payload.append(
+                    {
+                        "article_id": article_id,
+                        "label": "neutral",
+                        "confidence": 0.62,
+                        "rationale": "thong tin can bang",
+                    }
+                )
+        return json.dumps(payload)
 
     bootstrap_df, raw_records = bootstrap_labels_frame(
         corpus_df,

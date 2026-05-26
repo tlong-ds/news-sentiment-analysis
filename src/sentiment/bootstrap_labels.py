@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -39,6 +38,19 @@ Published at: {published_at}
 Body: {body_text}
 """
 
+BATCH_PROMPT_TEMPLATE = """You are labeling Vietnamese business news for investor market impact sentiment.
+Classify each article by expected market impact, not writing tone.
+
+Return strict JSON as an array. Each item must include:
+- article_id
+- label: exactly one of negative, neutral, positive
+- confidence: number from 0 to 1
+- rationale: short explanation
+
+Articles:
+{articles}
+"""
+
 
 @dataclass(frozen=True)
 class ModelSpec:
@@ -66,6 +78,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--confidence-threshold", type=float, default=0.8)
     parser.add_argument("--report-file")
     parser.add_argument("--concurrency", type=int, default=5)
+    parser.add_argument("--batch-size", type=int, default=20)
+    parser.add_argument("--sleep-seconds", type=float, default=0.0)
     return parser.parse_args()
 
 
@@ -92,8 +106,29 @@ def _extract_json_candidate(raw_text: str) -> dict[str, Any]:
         return json.loads(text[start : end + 1])
 
 
+def _extract_json_array_candidate(raw_text: str) -> list[dict[str, Any]]:
+    text = str(raw_text or "").strip()
+    if not text:
+        raise ValueError("Empty model response.")
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("[")
+        end = text.rfind("]")
+        if start == -1 or end == -1 or end <= start:
+            raise ValueError("Model response does not contain valid JSON array.")
+        payload = json.loads(text[start : end + 1])
+    if not isinstance(payload, list):
+        raise ValueError("Model response must be a JSON array.")
+    return payload
+
+
 def parse_bootstrap_response(raw_text: str) -> dict[str, Any]:
     payload = _extract_json_candidate(raw_text)
+    return parse_bootstrap_item(payload)
+
+
+def parse_bootstrap_item(payload: dict[str, Any]) -> dict[str, Any]:
     label = normalize_label(str(payload.get("label", "")))
     confidence = float(payload.get("confidence"))
     if not 0.0 <= confidence <= 1.0:
@@ -106,6 +141,24 @@ def parse_bootstrap_response(raw_text: str) -> dict[str, Any]:
         "confidence": confidence,
         "rationale": rationale,
     }
+
+
+def build_batch_prompt(rows: list[pd.Series]) -> str:
+    formatted_rows = []
+    for row in rows:
+        formatted_rows.append(
+            "\n".join(
+                [
+                    f"article_id: {row.get('article_id', '')}",
+                    f"title: {row.get('title', '')}",
+                    f"category: {row.get('category', '')}",
+                    f"published_at: {row.get('published_at', '')}",
+                    f"body: {row.get('body_text', '')}",
+                ]
+            )
+        )
+    articles_block = "\n\n".join(formatted_rows)
+    return BATCH_PROMPT_TEMPLATE.format(articles=articles_block)
 
 
 _session = None
@@ -227,85 +280,98 @@ def bootstrap_labels_frame(
     prompt_version: str,
     model_runner: Any = call_model,
     concurrency: int = 5,
+    batch_size: int = 20,
+    sleep_seconds: float = 0.0,
 ) -> tuple[pd.DataFrame, list[dict[str, Any]]]:
     validate_required_columns(
         df,
         {"article_id", "source", "category", "published_at", "title", "body_text"},
         dataset_name="bootstrap input",
     )
+    if batch_size <= 0:
+        raise ValueError("batch_size must be a positive integer.")
     rows: list[dict[str, Any]] = [None] * len(df)
     raw_records: list[dict[str, Any]] = [None] * len(df)
 
-    def process_row(index: int, row: pd.Series):
-        prompt = build_prompt(row)
+    def process_batch(
+        batch_index: int, batch_rows: list[pd.Series]
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str, str]:
+        prompt = build_batch_prompt(batch_rows)
         last_error = None
         for spec in model_specs:
             raw_text = ""
             try:
                 raw_text = str(model_runner(prompt, spec))
-                parsed = parse_bootstrap_response(raw_text)
-                return (
-                    index,
-                    {
-                        "article_id": str(row["article_id"]),
-                        "label": parsed["label"],
-                        "confidence": parsed["confidence"],
-                        "rationale": parsed["rationale"],
-                        "model_name": spec.model_name,
-                        "prompt_version": prompt_version,
-                    },
-                    {
-                        "article_id": str(row["article_id"]),
-                        "backend": spec.backend,
-                        "model_name": spec.model_name,
-                        "prompt_version": prompt_version,
-                        "response_text": raw_text,
-                        "status": "ok",
-                    },
-                )
+                payloads = _extract_json_array_candidate(raw_text)
+                labeled = []
+                raw = []
+                payload_map = {}
+                for payload in payloads:
+                    if not isinstance(payload, dict):
+                        raise ValueError("Batch response items must be JSON objects.")
+                    article_id = str(payload.get("article_id", "")).strip()
+                    if not article_id:
+                        raise ValueError("Batch response item missing article_id.")
+                    if article_id in payload_map:
+                        raise ValueError(
+                            f"Duplicate article_id in batch response: {article_id}"
+                        )
+                    payload_map[article_id] = payload
+                for row in batch_rows:
+                    article_id = str(row["article_id"])
+                    if article_id not in payload_map:
+                        raise ValueError(
+                            f"Batch response missing article_id={article_id}."
+                        )
+                    parsed = parse_bootstrap_item(payload_map[article_id])
+                    labeled.append(
+                        {
+                            "article_id": article_id,
+                            "label": parsed["label"],
+                            "confidence": parsed["confidence"],
+                            "rationale": parsed["rationale"],
+                            "model_name": spec.model_name,
+                            "prompt_version": prompt_version,
+                        }
+                    )
+                    raw.append(
+                        {
+                            "article_id": article_id,
+                            "backend": spec.backend,
+                            "model_name": spec.model_name,
+                            "prompt_version": prompt_version,
+                            "response_text": raw_text,
+                            "status": "ok",
+                            "batch_index": batch_index,
+                        }
+                    )
+                return labeled, raw, spec.backend, spec.model_name
             except Exception as exc:
                 last_error = exc
-                # Record error details, try next spec if available
-                pass
+                continue
         raise RuntimeError(
-            f"Bootstrap labeling failed for article_id={row['article_id']}: {last_error}"
+            f"Bootstrap labeling failed for batch {batch_index}: {last_error}"
         ) from last_error
 
-    with ThreadPoolExecutor(max_workers=concurrency) as executor:
-        # Submit tasks using DataFrame.iterrows() which returns (index, Series).
-        futures: dict = {}
-        for pos, (_, row) in enumerate(df.iterrows()):
-            futures[executor.submit(process_row, pos, row)] = pos
+    batches: list[list[tuple[int, pd.Series]]] = []
+    current: list[tuple[int, pd.Series]] = []
+    for pos, (_, row) in enumerate(df.iterrows()):
+        current.append((pos, row))
+        if len(current) >= batch_size:
+            batches.append(current)
+            current = []
+    if current:
+        batches.append(current)
 
-        for future in as_completed(futures):
-            pos = futures[future]
-            try:
-                idx, res_row, raw_rec = future.result()
-                rows[idx] = res_row
-                raw_records[idx] = raw_rec
-            except Exception as e:
-                # Log and record a structured error result so downstream steps can inspect failures.
-                logger.exception("Bootstrap labeling failed for row %s: %s", pos, e)
-                try:
-                    article_id = str(df.iloc[pos]["article_id"])
-                except Exception:
-                    article_id = str(pos)
-                rows[pos] = {
-                    "article_id": article_id,
-                    "label": None,
-                    "confidence": 0.0,
-                    "rationale": "",
-                    "model_name": None,
-                    "prompt_version": prompt_version,
-                }
-                raw_records[pos] = {
-                    "article_id": article_id,
-                    "backend": None,
-                    "model_name": None,
-                    "prompt_version": prompt_version,
-                    "response_text": str(e),
-                    "status": "error",
-                }
+    for batch_index, batch in enumerate(batches, start=1):
+        indices = [pos for pos, _ in batch]
+        batch_rows = [row for _, row in batch]
+        labeled_rows, raw_rows, used_backend, _ = process_batch(batch_index, batch_rows)
+        for pos, labeled_row, raw_row in zip(indices, labeled_rows, raw_rows):
+            rows[pos] = labeled_row
+            raw_records[pos] = raw_row
+        if used_backend == "gemini" and sleep_seconds > 0:
+            time.sleep(sleep_seconds)
 
     return pd.DataFrame(rows), raw_records
 
@@ -342,6 +408,8 @@ def main() -> None:
         model_specs=specs,
         prompt_version=args.prompt_version,
         concurrency=args.concurrency,
+        batch_size=args.batch_size,
+        sleep_seconds=args.sleep_seconds,
     )
     output_path = ensure_parent_dir(args.output_file)
     labels_df.to_parquet(output_path, index=False)

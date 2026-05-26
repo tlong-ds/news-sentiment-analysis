@@ -92,6 +92,18 @@ python -m src.sentiment.run_pipeline \
   --model-dir models/phobert-sentiment/latest
 ```
 
+## DVC Pipelines
+
+This repo ships two reproducible DVC pipelines (configured by `params.yaml`):
+
+```bash
+dvc repro pipelines/sentiment/dvc.yaml
+dvc repro pipelines/volatility/dvc.yaml
+```
+
+- `pipelines/sentiment/dvc.yaml`: preprocess → prepare_inputs → infer → merge → validations → modeling frame
+- `pipelines/volatility/dvc.yaml`: experiment → robustness → figures/tables
+
 ## Sentiment Contract
 
 - `src.sentiment.prepare_inputs` prepares unlabeled CafeF inference rows from `data/interim/articles_clean.parquet`.

@@ -1,0 +1,26 @@
+# Centralized knobs for reproducible DVC runs.
+# Keep these aligned with CLI flags in src/.
+
+paths:
+  raw_news: data/raw/news_VN_cafef.csv
+  prices: data/raw/prices_VN.csv
+  interim_dir: data/interim
+  sentiment_dir: data/sentiment
+  model_dir: models/phobert-sentiment/latest
+
+sentiment:
+  batch_size: 32
+  max_length: 256
+
+model_frame:
+  target_type: parkinson
+  sentiment_threshold: 0.05
+
+volatility:
+  sequence_length: 15
+  train_end: "2021-12-31"
+  val_end: "2023-12-31"
+  epochs: 30
+  batch_size: 32
+  output_experiment: data/interim/hybrid_experiment_summary.json
+  output_robustness: data/interim/robustness_experiment_summary.json

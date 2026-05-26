@@ -1,0 +1,142 @@
+vars:
+  - ../../params.yaml
+
+stages:
+  preprocess:
+    wdir: ../..
+    cmd: >-
+      python -m src.preprocessing.pipeline
+      --raw-news ${paths.raw_news}
+      --prices ${paths.prices}
+      --out-dir ${paths.interim_dir}
+    deps:
+      - src/preprocessing
+      - ${paths.raw_news}
+      - ${paths.prices}
+    params:
+      - paths.raw_news
+      - paths.prices
+      - paths.interim_dir
+    outs:
+      - ${paths.interim_dir}/articles_clean.parquet
+      - ${paths.interim_dir}/daily_news_prices.parquet
+
+  prepare_inputs:
+    wdir: ../..
+    cmd: >-
+      python -m src.sentiment.prepare_inputs
+      --cafef-input ${paths.interim_dir}/articles_clean.parquet
+      --cafef-output ${paths.interim_dir}/cafef_input.parquet
+      --max-tokens ${sentiment.max_length}
+      --report-file ${paths.interim_dir}/input_preparation_report.json
+    deps:
+      - src/sentiment
+      - ${paths.interim_dir}/articles_clean.parquet
+    params:
+      - paths.interim_dir
+      - sentiment.max_length
+    outs:
+      - ${paths.interim_dir}/cafef_input.parquet
+      - ${paths.interim_dir}/input_preparation_report.json
+
+  infer_cafef:
+    wdir: ../..
+    cmd: >-
+      python -m src.sentiment.infer_cafef
+      --model-dir ${paths.model_dir}
+      --input-file ${paths.interim_dir}/cafef_input.parquet
+      --output-file ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      --batch-size ${sentiment.batch_size}
+      --max-length ${sentiment.max_length}
+    deps:
+      - src/sentiment
+      - ${paths.model_dir}
+      - ${paths.interim_dir}/cafef_input.parquet
+    params:
+      - paths.model_dir
+      - paths.interim_dir
+      - paths.sentiment_dir
+      - sentiment.batch_size
+      - sentiment.max_length
+    outs:
+      - ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      - ${paths.sentiment_dir}/article_sentiment_scores.report.json
+
+  merge_articles_sentiment:
+    wdir: ../..
+    cmd: >-
+      python -m src.sentiment.merge_sentiment_with_articles
+      --articles-file ${paths.interim_dir}/articles_clean.parquet
+      --sentiment-file ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      --output-file ${paths.interim_dir}/articles_with_sentiment.parquet
+    deps:
+      - src/sentiment/merge_sentiment_with_articles.py
+      - ${paths.interim_dir}/articles_clean.parquet
+      - ${paths.sentiment_dir}/article_sentiment_scores.parquet
+    params:
+      - paths.interim_dir
+      - paths.sentiment_dir
+    outs:
+      - ${paths.interim_dir}/articles_with_sentiment.parquet
+      - ${paths.interim_dir}/articles_with_sentiment.report.json
+
+  validate_inference:
+    wdir: ../..
+    cmd: >-
+      python -m src.sentiment.validate_inference
+      --articles-file ${paths.interim_dir}/articles_clean.parquet
+      --sentiment-file ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      --daily-news-file ${paths.interim_dir}/daily_news_prices.parquet
+      --report-file ${paths.interim_dir}/sentiment_inference_validation.json
+    deps:
+      - src/sentiment/validate_inference.py
+      - ${paths.interim_dir}/articles_clean.parquet
+      - ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      - ${paths.interim_dir}/daily_news_prices.parquet
+    params:
+      - paths.interim_dir
+      - paths.sentiment_dir
+    outs:
+      - ${paths.interim_dir}/sentiment_inference_validation.json
+
+  validate_daily_aggregation:
+    wdir: ../..
+    cmd: >-
+      python -m src.sentiment.validate_daily_aggregation
+      --sentiment-file ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      --output-file ${paths.interim_dir}/daily_aggregation_validation.json
+    deps:
+      - src/sentiment/validate_daily_aggregation.py
+      - ${paths.sentiment_dir}/article_sentiment_scores.parquet
+    params:
+      - paths.interim_dir
+      - paths.sentiment_dir
+    outs:
+      - ${paths.interim_dir}/daily_aggregation_validation.json
+
+  build_model_frame:
+    wdir: ../..
+    cmd: >-
+      python -m src.modeling.prepare_model_frame
+      --prices ${paths.prices}
+      --daily-news ${paths.interim_dir}/daily_news_prices.parquet
+      --sentiment ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      --articles-clean ${paths.interim_dir}/articles_clean.parquet
+      --output-file ${paths.interim_dir}/modeling_ready.parquet
+      --target-type ${model_frame.target_type}
+      --sentiment-threshold ${model_frame.sentiment_threshold}
+    deps:
+      - src/modeling
+      - ${paths.prices}
+      - ${paths.interim_dir}/daily_news_prices.parquet
+      - ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      - ${paths.interim_dir}/articles_clean.parquet
+    params:
+      - paths.prices
+      - paths.interim_dir
+      - paths.sentiment_dir
+      - model_frame.target_type
+      - model_frame.sentiment_threshold
+    outs:
+      - ${paths.interim_dir}/modeling_ready.parquet
+      - ${paths.interim_dir}/modeling_ready.report.json

@@ -1,0 +1,104 @@
+vars:
+  - ../../params.yaml
+
+stages:
+  run_experiment:
+    wdir: ../..
+    cmd: >-
+      python -m src.modeling.run_experiment
+      --prices ${paths.prices}
+      --model-frame ${paths.interim_dir}/modeling_ready.parquet
+      --sequence-length ${volatility.sequence_length}
+      --train-end ${volatility.train_end}
+      --val-end ${volatility.val_end}
+      --epochs ${volatility.epochs}
+      --batch-size ${volatility.batch_size}
+      --output ${volatility.output_experiment}
+    deps:
+      - src/modeling
+      - ${paths.prices}
+      - ${paths.interim_dir}/modeling_ready.parquet
+    params:
+      - paths.prices
+      - paths.interim_dir
+      - volatility.sequence_length
+      - volatility.train_end
+      - volatility.val_end
+      - volatility.epochs
+      - volatility.batch_size
+      - volatility.output_experiment
+    outs:
+      - ${volatility.output_experiment}
+
+  run_robustness:
+    wdir: ../..
+    cmd: >-
+      python -m src.modeling.run_robustness
+      --prices ${paths.prices}
+      --model-frame ${paths.interim_dir}/modeling_ready.parquet
+      --sequence-length ${volatility.sequence_length}
+      --train-end ${volatility.train_end}
+      --val-end ${volatility.val_end}
+      --epochs ${volatility.epochs}
+      --batch-size ${volatility.batch_size}
+      --output ${volatility.output_robustness}
+    deps:
+      - src/modeling
+      - ${paths.prices}
+      - ${paths.interim_dir}/modeling_ready.parquet
+    params:
+      - paths.prices
+      - paths.interim_dir
+      - volatility.sequence_length
+      - volatility.train_end
+      - volatility.val_end
+      - volatility.epochs
+      - volatility.batch_size
+      - volatility.output_robustness
+    outs:
+      - ${volatility.output_robustness}
+
+  plot_results:
+    wdir: ../..
+    cmd: python -m src.modeling.plot_results
+    deps:
+      - src/modeling/plot_results.py
+      - ${paths.prices}
+      - ${volatility.output_experiment}
+    params:
+      - paths.prices
+      - volatility.output_experiment
+    outs:
+      - report/figures/return_distribution.png
+      - report/figures/vol_clustering.png
+      - report/figures/forecast_comparison.png
+
+  plot_results_extras:
+    wdir: ../..
+    cmd: python -m src.modeling.plot_results_extras
+    deps:
+      - src/modeling/plot_results_extras.py
+      - ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      - ${volatility.output_robustness}
+    params:
+      - paths.sentiment_dir
+      - volatility.output_robustness
+    outs:
+      - report/figures/sentiment_distribution.png
+      - report/figures/robustness_comparison.png
+
+  descriptive_stats:
+    wdir: ../..
+    cmd: python -m src.modeling.compute_descriptive_stats
+    deps:
+      - src/modeling/compute_descriptive_stats.py
+      - ${paths.prices}
+      - ${paths.interim_dir}/articles_clean.parquet
+      - ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      - ${paths.interim_dir}/daily_news_prices.parquet
+    params:
+      - paths.prices
+      - paths.interim_dir
+      - paths.sentiment_dir
+    outs:
+      - report/tables/descriptive_stats_table.tex

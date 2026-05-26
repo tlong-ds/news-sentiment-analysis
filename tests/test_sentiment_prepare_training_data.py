@@ -1,7 +1,11 @@
 import pandas as pd
 import pytest
 
-from src.sentiment.prepare_training_data import combine_training_sources
+from src.sentiment.prepare_training_data import (
+    combine_training_sources,
+    normalize_extra_training_corpus,
+    prepare_training_dataframe,
+)
 
 
 def _cafef_df() -> pd.DataFrame:
@@ -58,6 +62,24 @@ def test_combine_training_sources_trims_and_maps_extra_dataset():
     assert full_data_row["source"] == "full_data"
     assert full_data_row["body_text"] == "noi dung full data duoc giu lai"
     assert full_data_row["published_at"].startswith("2024-01-03")
+
+
+def test_prepare_training_dataframe_supports_extra_only():
+    normalized = normalize_extra_training_corpus(
+        _full_data_df(),
+        source_name="full_data",
+        date_column="time",
+        title_column="title",
+        body_column="content",
+        category_column="category",
+        url_column="url",
+        max_date="2024-12-31",
+    )
+    prepared = prepare_training_dataframe(normalized)
+
+    assert set(prepared["source_dataset"]) == {"full_data"}
+    assert set(prepared["article_id"]) == {"f1"}
+    assert "input_text" in prepared.columns
 
 
 def test_combine_training_sources_rejects_missing_columns_and_duplicate_overlap():

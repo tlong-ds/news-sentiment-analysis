@@ -113,9 +113,13 @@ def resolve_labeled_corpus(
     args: argparse.Namespace, *, tracking: Any | None = None
 ) -> Path:
     """Prepare or assemble the labeled corpus used for classifier training."""
-    if not args.training_input and not args.training_cafef_input:
+    if (
+        not args.training_input
+        and not args.training_cafef_input
+        and not args.training_extra_input
+    ):
         raise ValueError(
-            "Provide --training-input or --training-cafef-input for train/full mode."
+            "Provide --training-input, --training-cafef-input, or --training-extra-input for train/full mode."
         )
 
     command = [sys.executable, "-m", "src.sentiment.prepare_training_data"]
@@ -123,7 +127,7 @@ def resolve_labeled_corpus(
     if args.training_input:
         command.extend(["--input-file", args.training_input])
         source_dataset = "training_input"
-    else:
+    elif args.training_cafef_input:
         command.extend(["--cafef-input", args.training_cafef_input])
         if args.training_extra_input:
             command.extend(
@@ -135,6 +139,18 @@ def resolve_labeled_corpus(
                 ]
             )
             source_dataset = f"cafef+{args.training_extra_source_name}"
+        if args.training_max_date:
+            command.extend(["--max-date", args.training_max_date])
+    else:
+        command.extend(
+            [
+                "--extra-input",
+                args.training_extra_input,
+                "--extra-source-name",
+                args.training_extra_source_name,
+            ]
+        )
+        source_dataset = args.training_extra_source_name
         if args.training_max_date:
             command.extend(["--max-date", args.training_max_date])
     command.extend(["--output-file", args.training_output])

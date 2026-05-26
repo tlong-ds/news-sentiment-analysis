@@ -256,22 +256,43 @@ def main() -> None:
             max_body_chars=args.max_body_chars,
         )
     else:
-        if not args.cafef_input:
-            raise ValueError("Provide either --input-file or --cafef-input.")
-        cafef_df = read_table(args.cafef_input)
+        if not args.cafef_input and not args.extra_input:
+            raise ValueError(
+                "Provide --input-file, --cafef-input, or --extra-input to build a corpus."
+            )
+
         extra_df = read_table(args.extra_input) if args.extra_input else None
-        prepared = combine_training_sources(
-            cafef_df,
-            extra_df=extra_df,
-            extra_source_name=args.extra_source_name,
-            extra_date_column=args.extra_date_column,
-            extra_title_column=args.extra_title_column,
-            extra_body_column=args.extra_body_column,
-            extra_category_column=args.extra_category_column,
-            extra_url_column=args.extra_url_column,
-            max_date=args.max_date,
-            max_body_chars=args.max_body_chars,
-        )
+        if args.cafef_input:
+            cafef_df = read_table(args.cafef_input)
+            prepared = combine_training_sources(
+                cafef_df,
+                extra_df=extra_df,
+                extra_source_name=args.extra_source_name,
+                extra_date_column=args.extra_date_column,
+                extra_title_column=args.extra_title_column,
+                extra_body_column=args.extra_body_column,
+                extra_category_column=args.extra_category_column,
+                extra_url_column=args.extra_url_column,
+                max_date=args.max_date,
+                max_body_chars=args.max_body_chars,
+            )
+        else:
+            if extra_df is None:
+                raise ValueError("Provide --extra-input when --cafef-input is omitted.")
+            normalized_extra = normalize_extra_training_corpus(
+                extra_df,
+                source_name=args.extra_source_name,
+                date_column=args.extra_date_column,
+                title_column=args.extra_title_column,
+                body_column=args.extra_body_column,
+                category_column=args.extra_category_column,
+                url_column=args.extra_url_column,
+                max_date=args.max_date,
+            )
+            prepared = prepare_training_dataframe(
+                normalized_extra,
+                max_body_chars=args.max_body_chars,
+            )
     output_path = ensure_parent_dir(args.output_file)
     prepared.to_parquet(output_path, index=False)
 

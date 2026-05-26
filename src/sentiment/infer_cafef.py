@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
-
 import argparse
 import json
 import logging
@@ -13,8 +9,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import tensorflow as tf
-from transformers import AutoTokenizer, TFAutoModelForSequenceClassification
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from src.config import CAFEF_DATA_DIR, MODELS_DATA_DIR, PROCESSED_DATA_DIR
 from src.sentiment.common import (
@@ -30,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Run PhoBERT classifier inference on CafeF inputs."
     )
@@ -48,24 +45,31 @@ def parse_args() -> argparse.Namespace:
 def predict_probabilities(
     texts: list[str],
     *,
-    model: TFAutoModelForSequenceClassification,
+    model: AutoModelForSequenceClassification,
     tokenizer: AutoTokenizer,
     max_length: int,
+    device: torch.device,
 ) -> np.ndarray:
+    """Predict label probabilities for input texts using the model."""
     encodings = tokenizer(
         texts,
         truncation=True,
         max_length=max_length,
         padding=True,
-        return_tensors="tf",
+        return_tensors="pt",
     )
-    logits = model(encodings, training=False).logits
-    return tf.nn.softmax(logits, axis=1).numpy()
+    model.eval()
+    with torch.no_grad():
+        inputs = {k: v.to(device) for k, v in encodings.items()}
+        logits = model(**inputs).logits
+        probs = torch.softmax(logits, dim=1).cpu().numpy()
+    return probs
 
 
 def build_output_rows(
     batch_df: pd.DataFrame, probabilities: np.ndarray
 ) -> pd.DataFrame:
+    """Build standardized output DataFrame with sentiment labels and probabilities."""
     prob_negative = probabilities[:, 0]
     prob_neutral = probabilities[:, 1]
     prob_positive = probabilities[:, 2]
@@ -85,6 +89,7 @@ def build_output_rows(
 
 
 def main() -> None:
+    """CLI entrypoint for running classifier inference."""
     args = parse_args()
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -98,8 +103,20 @@ def main() -> None:
         {"url", "trading_date", "category", "input_text"},
         dataset_name="CafeF inference input",
     )
+
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        logger.info("Using CUDA GPU device: %s", torch.cuda.get_device_name(0))
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+        logger.info("Using MPS device.")
+    else:
+        device = torch.device("cpu")
+        logger.info("Using CPU device.")
+
     tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
-    model = TFAutoModelForSequenceClassification.from_pretrained(str(model_dir))
+    model = AutoModelForSequenceClassification.from_pretrained(str(model_dir))
+    model.to(device)
 
     output_path = ensure_parent_dir(args.output_file)
     checkpoint_path = output_path.with_suffix(".checkpoint.parquet")
@@ -119,6 +136,7 @@ def main() -> None:
             model=model,
             tokenizer=tokenizer,
             max_length=args.max_length,
+            device=device,
         )
         batches.append(build_output_rows(batch_df, probabilities))
         processed = start + len(batch_df)

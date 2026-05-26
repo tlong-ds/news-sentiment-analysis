@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-import os
-
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
-
 import argparse
 import json
 import logging
+import random
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
-import tensorflow as tf
-from transformers import AutoTokenizer, TFAutoModelForSequenceClassification
+import torch
+from torch.utils.data import DataLoader, Dataset
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from src.config import MODELS_DATA_DIR
 from src.sentiment.common import (
@@ -41,7 +40,24 @@ from src.utils.io import read_parquet_table
 logger = logging.getLogger(__name__)
 
 
+class SentimentDataset(Dataset):
+    """Dataset for training and evaluating sentiment classification model."""
+
+    def __init__(self, encodings: dict[str, torch.Tensor], labels: np.ndarray):
+        self.encodings = encodings
+        self.labels = torch.tensor(labels, dtype=torch.long)
+
+    def __getitem__(self, idx: int) -> dict[str, Any]:
+        item = {key: val[idx] for key, val in self.encodings.items()}
+        item["labels"] = self.labels[idx]
+        return item
+
+    def __len__(self) -> int:
+        return len(self.labels)
+
+
 def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Train a 3-label article-level sentiment classifier."
     )
@@ -84,24 +100,21 @@ def _build_dataset(
     max_length: int,
     batch_size: int,
     shuffle: bool,
-) -> tf.data.Dataset:
+) -> DataLoader:
     encodings = tokenizer(
         df["input_text"].astype(str).tolist(),
         truncation=True,
         padding=True,
         max_length=max_length,
-        return_tensors="tf",
+        return_tensors="pt",
     )
-    labels = tf.convert_to_tensor(df["label"].map(LABEL_TO_ID).to_numpy(dtype=np.int32))
-    dataset = tf.data.Dataset.from_tensor_slices((dict(encodings), labels))
-    if shuffle and len(df) > 1:
-        dataset = dataset.shuffle(
-            buffer_size=len(df), seed=42, reshuffle_each_iteration=True
-        )
-    return dataset.batch(batch_size)
+    labels = df["label"].map(LABEL_TO_ID).to_numpy(dtype=np.int64)
+    dataset = SentimentDataset(dict(encodings), labels)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
 
 def compute_metrics(df: pd.DataFrame, probabilities: np.ndarray) -> dict:
+    """Compute performance metrics based on probabilities and gold labels."""
     gold = df["label"].map(LABEL_TO_ID).to_numpy(dtype=np.int32)
     pred = probabilities.argmax(axis=1)
     accuracy = float((gold == pred).mean()) if len(gold) else 0.0
@@ -124,6 +137,7 @@ def compute_metrics(df: pd.DataFrame, probabilities: np.ndarray) -> dict:
 
 
 def summarize_split(df: pd.DataFrame, *, skipped_training: bool) -> dict:
+    """Summarize the split statistics when training is skipped."""
     return {
         "rows": int(len(df)),
         "accuracy": None if skipped_training else 0.0,
@@ -134,19 +148,26 @@ def summarize_split(df: pd.DataFrame, *, skipped_training: bool) -> dict:
 
 
 def predict_dataset_probabilities(
-    model: TFAutoModelForSequenceClassification,
-    dataset: tf.data.Dataset,
+    model: AutoModelForSequenceClassification,
+    dataloader: DataLoader,
+    device: torch.device,
 ) -> np.ndarray:
+    """Predict label probabilities using the model and a DataLoader."""
+    model.eval()
     outputs: list[np.ndarray] = []
-    for features, _ in dataset:
-        logits = model(features, training=False).logits
-        outputs.append(tf.nn.softmax(logits, axis=1).numpy())
+    with torch.no_grad():
+        for batch in dataloader:
+            inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
+            logits = model(**inputs).logits
+            probs = torch.softmax(logits, dim=1).cpu().numpy()
+            outputs.append(probs)
     if not outputs:
         return np.empty((0, 3), dtype=float)
     return np.concatenate(outputs, axis=0)
 
 
 def build_training_report(df: pd.DataFrame, evaluation: dict) -> dict:
+    """Build a summary training report dictionary."""
     token_counts = df["input_text"].astype(str).str.split().map(len)
     report = {
         "rows": int(len(df)),
@@ -174,60 +195,51 @@ def train_classifier(
     max_length: int,
     seed: int,
 ) -> dict:
-    tf.keras.utils.set_random_seed(seed)
+    """Train the classifier model using the provided data."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
     prepared = _prepare_labels(labeled_df)
     output_path = ensure_dir(output_dir)
 
-    # Detect and configure GPUs. If multiple GPUs are available, use MirroredStrategy.
-    gpus = tf.config.list_physical_devices("GPU")
-    if gpus:
-        logger.info("Detected GPU devices: %s", [g.name for g in gpus])
-        for g in gpus:
-            try:
-                tf.config.experimental.set_memory_growth(g, True)
-            except Exception:
-                logger.debug("Could not set memory growth for %s", g)
-        if len(gpus) > 1:
-            logger.info(
-                "Multiple GPUs detected, using tf.distribute.MirroredStrategy()."
-            )
-            strategy = tf.distribute.MirroredStrategy()
-        else:
-            strategy = tf.distribute.get_strategy()
+    # Detect device
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        logger.info("Using CUDA GPU device: %s", torch.cuda.get_device_name(0))
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+        logger.info("Using MPS device.")
     else:
-        logger.info("No GPUs detected; using default TF strategy (CPU).")
-        strategy = tf.distribute.get_strategy()
+        device = torch.device("cpu")
+        logger.info("Using CPU device.")
 
     tokenizer = AutoTokenizer.from_pretrained(base_model)
 
-    # Create and compile the model inside the strategy scope so variables are placed correctly
-    with strategy.scope():
-        try:
-            model = TFAutoModelForSequenceClassification.from_pretrained(
-                base_model,
-                num_labels=3,
-                id2label=ID_TO_LABEL,
-                label2id=LABEL_TO_ID,
-                ignore_mismatched_sizes=True,
-            )
-        except OSError:
-            logger.info(
-                "TensorFlow weights not found for %s; attempting to load from PyTorch weights with from_pt=True",
-                base_model,
-            )
-            model = TFAutoModelForSequenceClassification.from_pretrained(
-                base_model,
-                num_labels=3,
-                id2label=ID_TO_LABEL,
-                label2id=LABEL_TO_ID,
-                ignore_mismatched_sizes=True,
-                from_pt=True,
-            )
-        model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-            loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-            metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="accuracy")],
+    try:
+        model = AutoModelForSequenceClassification.from_pretrained(
+            base_model,
+            num_labels=3,
+            id2label=ID_TO_LABEL,
+            label2id=LABEL_TO_ID,
+            ignore_mismatched_sizes=True,
         )
+    except OSError:
+        logger.info(
+            "PyTorch weights not found for %s; attempting to load from TensorFlow weights with from_tf=True",
+            base_model,
+        )
+        model = AutoModelForSequenceClassification.from_pretrained(
+            base_model,
+            num_labels=3,
+            id2label=ID_TO_LABEL,
+            label2id=LABEL_TO_ID,
+            ignore_mismatched_sizes=True,
+            from_tf=True,
+        )
+    model.to(device)
 
     train_df = prepared[prepared["split"] == "train"].copy().reset_index(drop=True)
     val_df = prepared[prepared["split"] == "val"].copy().reset_index(drop=True)
@@ -260,14 +272,35 @@ def train_classifier(
     )
 
     if epochs > 0:
-        model.fit(train_ds, validation_data=val_ds, epochs=epochs, verbose=0)
-        test_probs = predict_dataset_probabilities(model, test_ds)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+        loss_fn = torch.nn.CrossEntropyLoss()
+
+        for epoch in range(epochs):
+            model.train()
+            total_loss = 0.0
+            for batch in train_ds:
+                optimizer.zero_grad()
+                inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
+                labels = batch["labels"].to(device)
+                outputs = model(**inputs)
+                loss = loss_fn(outputs.logits, labels)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+            logger.info(
+                "Epoch %d/%d - Loss: %.4f",
+                epoch + 1,
+                epochs,
+                total_loss / len(train_ds),
+            )
+
+        test_probs = predict_dataset_probabilities(model, test_ds, device)
         evaluation = {
             "train": compute_metrics(
-                train_df, predict_dataset_probabilities(model, train_ds)
+                train_df, predict_dataset_probabilities(model, train_ds, device)
             ),
             "val": compute_metrics(
-                val_df, predict_dataset_probabilities(model, val_ds)
+                val_df, predict_dataset_probabilities(model, val_ds, device)
             ),
             "test": compute_metrics(test_df, test_probs),
         }

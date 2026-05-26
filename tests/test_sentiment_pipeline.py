@@ -16,8 +16,8 @@ from tokenizers.trainers import WordLevelTrainer
 from transformers import (
     BertConfig,
     PreTrainedTokenizerFast,
-    TFBertForMaskedLM,
-    TFBertForSequenceClassification,
+    BertForMaskedLM,
+    BertForSequenceClassification,
 )
 
 from src.sentiment.bootstrap_labels import (
@@ -75,10 +75,9 @@ def _tiny_sequence_classifier_dir(tmp_path: Path) -> Path:
         num_labels=3,
         id2label=ID_TO_LABEL,
         label2id=LABEL_TO_ID,
-        architectures=["TFBertForSequenceClassification"],
+        architectures=["BertForSequenceClassification"],
     )
-    model = TFBertForSequenceClassification(config)
-    model(model.dummy_inputs)
+    model = BertForSequenceClassification(config)
     model.save_pretrained(str(model_dir))
     return model_dir
 
@@ -94,10 +93,9 @@ def _tiny_mlm_dir(tmp_path: Path) -> Path:
         num_attention_heads=2,
         intermediate_size=32,
         max_position_embeddings=128,
-        architectures=["TFBertForMaskedLM"],
+        architectures=["BertForMaskedLM"],
     )
-    model = TFBertForMaskedLM(config)
-    model(model.dummy_inputs)
+    model = BertForMaskedLM(config)
     model.save_pretrained(str(model_dir))
     return model_dir
 

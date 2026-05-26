@@ -353,6 +353,8 @@ def bootstrap_labels_frame(
             f"Bootstrap labeling failed for batch {batch_index}: {last_error}"
         ) from last_error
 
+    from concurrent.futures import ThreadPoolExecutor
+
     batches: list[list[tuple[int, pd.Series]]] = []
     current: list[tuple[int, pd.Series]] = []
     for pos, (_, row) in enumerate(df.iterrows()):
@@ -363,10 +365,23 @@ def bootstrap_labels_frame(
     if current:
         batches.append(current)
 
-    for batch_index, batch in enumerate(batches, start=1):
+    def process_and_track(batch_info):
+        batch_index, batch_rows = batch_info
+        return batch_index, process_batch(batch_index, batch_rows)
+
+    tasks = [
+        (idx, [row for _, row in batch]) for idx, batch in enumerate(batches, start=1)
+    ]
+
+    if concurrency > 1 and len(tasks) > 1:
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            results = list(executor.map(process_and_track, tasks))
+    else:
+        results = [process_and_track(task) for task in tasks]
+
+    for batch_index, (labeled_rows, raw_rows, used_backend, _) in results:
+        batch = batches[batch_index - 1]
         indices = [pos for pos, _ in batch]
-        batch_rows = [row for _, row in batch]
-        labeled_rows, raw_rows, used_backend, _ = process_batch(batch_index, batch_rows)
         for pos, labeled_row, raw_row in zip(indices, labeled_rows, raw_rows):
             rows[pos] = labeled_row
             raw_records[pos] = raw_row

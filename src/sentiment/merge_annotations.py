@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--report-file")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--train-ratio", type=float, default=0.8)
-    parser.add_argument("--val-ratio", type=float, default=0.1)
+    parser.add_argument("--val-ratio", type=float, default=0.0)
     parser.add_argument("--confidence-threshold", type=float, default=0.8)
     parser.add_argument("--allow-low-confidence", action="store_true")
     return parser.parse_args()
@@ -77,7 +77,7 @@ def merge_annotation_frames(
     reviewed_df: pd.DataFrame | None = None,
     seed: int = 42,
     train_ratio: float = 0.8,
-    val_ratio: float = 0.1,
+    val_ratio: float = 0.0,
     confidence_threshold: float = 0.8,
     allow_low_confidence: bool = False,
 ) -> pd.DataFrame:
@@ -142,7 +142,6 @@ def merge_annotation_frames(
         )
     merged["split"] = assign_splits(
         merged,
-        seed=seed,
         train_ratio=train_ratio,
         val_ratio=val_ratio,
     )

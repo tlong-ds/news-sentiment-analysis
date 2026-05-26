@@ -107,7 +107,7 @@ def prepare_training_dataframe(
         if "split" in df.columns:
             prepared["split"] = df["split"].astype(str).str.strip().str.lower()
         else:
-            prepared["split"] = assign_splits(prepared, seed=42)
+            prepared["split"] = assign_splits(prepared)
         validate_required_columns(
             prepared, LABELED_REQUIRED_COLUMNS, dataset_name="prepared labeled corpus"
         )

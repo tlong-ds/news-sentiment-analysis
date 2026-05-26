@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -157,14 +156,13 @@ def assign_splits(
     df: pd.DataFrame,
     *,
     split_col: str = "split",
-    label_col: str = "label",
-    seed: int = 42,
+    time_col: str = "published_at",
     train_ratio: float = 0.8,
-    val_ratio: float = 0.1,
+    val_ratio: float = 0.0,
 ) -> pd.Series:
-    if train_ratio <= 0 or val_ratio <= 0 or train_ratio + val_ratio >= 1:
+    if train_ratio <= 0 or val_ratio < 0 or train_ratio + val_ratio >= 1:
         raise ValueError(
-            "Split ratios must satisfy 0 < train_ratio, val_ratio and train_ratio + val_ratio < 1."
+            "Split ratios must satisfy 0 < train_ratio, 0 <= val_ratio and train_ratio + val_ratio < 1."
         )
     if split_col in df.columns and df[split_col].notna().all():
         normalized = df[split_col].astype(str).str.strip().str.lower()
@@ -174,33 +172,31 @@ def assign_splits(
                 f"Invalid split values: {invalid}. Expected one of {sorted(VALID_SPLITS)}"
             )
         return normalized
-
-    rng = random.Random(seed)
-    assignments = pd.Series(index=df.index, dtype="object")
-    group_source = (
-        df[label_col].astype(str)
-        if label_col in df.columns
-        else pd.Series(["all"] * len(df), index=df.index)
-    )
-    for _, group_idx in group_source.groupby(group_source).groups.items():
-        indices = list(group_idx)
-        rng.shuffle(indices)
-        total = len(indices)
-        train_cut = (
-            max(1, int(round(total * train_ratio))) if total >= 3 else max(1, total - 1)
+    if time_col not in df.columns:
+        raise ValueError(f"Temporal split requires column '{time_col}'.")
+    parsed = pd.to_datetime(df[time_col], errors="coerce")
+    if parsed.isna().any():
+        raise ValueError(
+            f"Temporal split requires valid {time_col} values for all rows."
         )
-        val_cut = max(1, int(round(total * val_ratio))) if total >= 10 else 1
-        if train_cut + val_cut >= total:
-            val_cut = 1 if total >= 3 else 0
-            train_cut = max(1, total - val_cut - 1) if total >= 3 else total - val_cut
-        for offset, idx in enumerate(indices):
-            if offset < train_cut:
-                assignments.loc[idx] = "train"
-            elif offset < train_cut + val_cut:
-                assignments.loc[idx] = "val"
-            else:
-                assignments.loc[idx] = "test"
-    assignments = assignments.fillna("train")
+    day_series = parsed.dt.normalize()
+    unique_days = sorted(day_series.unique())
+    total_days = len(unique_days)
+    if total_days <= 1:
+        return pd.Series(["train"] * len(df), index=df.index)
+    train_days = max(1, int(round(total_days * train_ratio)))
+    if train_days >= total_days:
+        train_days = total_days - 1
+    val_days = max(0, int(round(total_days * val_ratio)))
+    if train_days + val_days >= total_days:
+        val_days = max(0, total_days - train_days - 1)
+    train_set = set(unique_days[:train_days])
+    val_set = set(unique_days[train_days : train_days + val_days])
+    assignments = pd.Series(index=df.index, dtype="object")
+    assignments.loc[day_series.isin(train_set)] = "train"
+    if val_set:
+        assignments.loc[day_series.isin(val_set)] = "val"
+    assignments = assignments.fillna("test")
     return assignments
 
 

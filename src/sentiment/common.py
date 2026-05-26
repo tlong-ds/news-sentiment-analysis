@@ -187,7 +187,14 @@ def assign_splits(
     unique_days = sorted(day_series.unique())
     total_days = len(unique_days)
     if total_days <= 1:
-        return pd.Series(["train"] * len(df), index=df.index)
+        assignments = pd.Series(["train"] * len(df), index=df.index)
+        expected_splits = ["train", "test"]
+        if val_ratio > 0.0:
+            expected_splits.append("val")
+        if len(df) >= len(expected_splits):
+            for idx, split_name in enumerate(expected_splits):
+                assignments.iloc[idx] = split_name
+        return assignments
     train_days = max(1, int(round(total_days * train_ratio)))
     if train_days >= total_days:
         train_days = total_days - 1
@@ -201,6 +208,18 @@ def assign_splits(
     if val_set:
         assignments.loc[day_series.isin(val_set)] = "val"
     assignments = assignments.fillna("test")
+
+    # Ensure active splits are non-empty if we have enough rows
+    expected_splits = ["train", "test"]
+    if val_ratio > 0.0:
+        expected_splits.append("val")
+    if len(df) >= len(expected_splits):
+        for split_name in expected_splits:
+            if not (assignments == split_name).any():
+                largest_split = assignments.value_counts().index[0]
+                idx_to_change = assignments[assignments == largest_split].index[0]
+                assignments.loc[idx_to_change] = split_name
+
     return assignments
 
 

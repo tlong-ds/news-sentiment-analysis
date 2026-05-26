@@ -244,9 +244,9 @@ def train_classifier(
     train_df = prepared[prepared["split"] == "train"].copy().reset_index(drop=True)
     val_df = prepared[prepared["split"] == "val"].copy().reset_index(drop=True)
     test_df = prepared[prepared["split"] == "test"].copy().reset_index(drop=True)
-    if train_df.empty or val_df.empty or test_df.empty:
+    if train_df.empty or test_df.empty:
         raise ValueError(
-            "Labeled sentiment corpus must contain non-empty train, val, and test splits."
+            "Labeled sentiment corpus must contain non-empty train and test splits."
         )
 
     train_ds = _build_dataset(
@@ -256,12 +256,16 @@ def train_classifier(
         batch_size=batch_size,
         shuffle=True,
     )
-    val_ds = _build_dataset(
-        val_df,
-        tokenizer=tokenizer,
-        max_length=max_length,
-        batch_size=batch_size,
-        shuffle=False,
+    val_ds = (
+        _build_dataset(
+            val_df,
+            tokenizer=tokenizer,
+            max_length=max_length,
+            batch_size=batch_size,
+            shuffle=False,
+        )
+        if not val_df.empty
+        else None
     )
     test_ds = _build_dataset(
         test_df,
@@ -299,11 +303,14 @@ def train_classifier(
             "train": compute_metrics(
                 train_df, predict_dataset_probabilities(model, train_ds, device)
             ),
-            "val": compute_metrics(
-                val_df, predict_dataset_probabilities(model, val_ds, device)
-            ),
             "test": compute_metrics(test_df, test_probs),
         }
+        if val_ds is not None:
+            evaluation["val"] = compute_metrics(
+                val_df, predict_dataset_probabilities(model, val_ds, device)
+            )
+        else:
+            evaluation["val"] = summarize_split(val_df, skipped_training=True)
         source_col = (
             "source_dataset" if "source_dataset" in prepared.columns else "source"
         )

@@ -198,13 +198,27 @@ def train_classifier(
 
     # Create and compile the model inside the strategy scope so variables are placed correctly
     with strategy.scope():
-        model = TFAutoModelForSequenceClassification.from_pretrained(
-            base_model,
-            num_labels=3,
-            id2label=ID_TO_LABEL,
-            label2id=LABEL_TO_ID,
-            ignore_mismatched_sizes=True,
-        )
+        try:
+            model = TFAutoModelForSequenceClassification.from_pretrained(
+                base_model,
+                num_labels=3,
+                id2label=ID_TO_LABEL,
+                label2id=LABEL_TO_ID,
+                ignore_mismatched_sizes=True,
+            )
+        except OSError:
+            logger.info(
+                "TensorFlow weights not found for %s; attempting to load from PyTorch weights with from_pt=True",
+                base_model,
+            )
+            model = TFAutoModelForSequenceClassification.from_pretrained(
+                base_model,
+                num_labels=3,
+                id2label=ID_TO_LABEL,
+                label2id=LABEL_TO_ID,
+                ignore_mismatched_sizes=True,
+                from_pt=True,
+            )
         model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
             loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),

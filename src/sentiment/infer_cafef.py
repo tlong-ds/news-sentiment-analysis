@@ -126,6 +126,14 @@ def main() -> None:
 
     output_df = pd.concat(batches, ignore_index=True)
     output_df.to_parquet(output_path, index=False)
+    if checkpoint_path.exists():
+        try:
+            checkpoint_path.unlink()
+            logger.info("Removed inference checkpoint file: %s", checkpoint_path)
+        except Exception as e:
+            logger.warning(
+                "Could not remove checkpoint file %s: %s", checkpoint_path, e
+            )
     report_path = output_path.with_suffix(".report.json")
     report_path.write_text(
         json.dumps(

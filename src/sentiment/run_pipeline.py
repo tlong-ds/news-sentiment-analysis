@@ -84,6 +84,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bootstrap-confidence-threshold", type=float, default=0.8)
     parser.add_argument("--bootstrap-concurrency", type=int, default=5)
     parser.add_argument("--annotation-sample-size", type=int, default=6000)
+    parser.add_argument(
+        "--fail-on-validation",
+        action="store_true",
+        dest="fail_on_validation",
+        default=True,
+    )
+    parser.add_argument(
+        "--no-fail-on-validation",
+        action="store_false",
+        dest="fail_on_validation",
+    )
     add_tracking_arguments(parser, include_registry=True)
     return parser.parse_args()
 
@@ -428,8 +439,7 @@ def run_infer_mode(args: argparse.Namespace, *, tracking: Any | None = None) -> 
         daily_news_file,
         "--report-file",
         str(validation_report),
-        "--fail-on-validation",
-    ]
+    ] + (["--fail-on-validation"] if args.fail_on_validation else [])
     run_command(
         validate_inference_command,
         tracking=tracking,

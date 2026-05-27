@@ -1,0 +1,35 @@
+schema: '2.0'
+stages:
+  plot_results:
+    cmd: python -m src.modeling.plot_results
+    deps:
+    - path: data/interim/hybrid_experiment_summary.json
+      hash: md5
+      md5: 06fcf593ddd4e569f55869378c262024
+      size: 29526
+    - path: data/raw/prices_VN.csv
+      hash: md5
+      md5: 8430db40dad115c3a12d6f790b0a5a13
+      size: 125850
+    - path: src/modeling/plot_results.py
+      hash: md5
+      md5: 0d5d07ad9a0d2ee580a6951538f5e136
+      size: 6113
+    params:
+      params.yaml:
+        paths.prices: data/raw/prices_VN.csv
+        volatility.output_experiment: 
+          data/interim/hybrid_experiment_summary.json
+    outs:
+    - path: report/figures/forecast_comparison.png
+      hash: md5
+      md5: a82cae45641edec520e0dc7fd1a87732
+      size: 316003
+    - path: report/figures/return_distribution.png
+      hash: md5
+      md5: 38363c575ae66febe97d703733fd8a43
+      size: 142972
+    - path: report/figures/vol_clustering.png
+      hash: md5
+      md5: ab1bb5fb6643d819e8532492513ded96
+      size: 428128

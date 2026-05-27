@@ -44,7 +44,7 @@ stages:
       size: 257151788
     - path: src/sentiment
       hash: md5
-      md5: 6401606ab8733e2cd022d72babbc2a31.dir
+      md5: d92a7d8fcd5bb493b9334e0a9104036f.dir
       size: 369541
       nfiles: 32
     params:
@@ -60,3 +60,170 @@ stages:
       hash: md5
       md5: ca55fd94b858afecbeb6d7cc685c51ac
       size: 518
+  infer_cafef:
+    cmd: python -m src.sentiment.infer_cafef --model-dir 
+      models/phobert-sentiment/latest --input-file 
+      data/interim/cafef_input.parquet --output-file 
+      data/sentiment/article_sentiment_scores.parquet --batch-size 32 
+      --max-length 256
+    deps:
+    - path: data/interim/cafef_input.parquet
+      hash: md5
+      md5: fb2fdabf05dcdccd1d3efed35591e248
+      size: 50736290
+    - path: models/phobert-sentiment/latest
+      hash: md5
+      md5: f576599f9c464db1a8a6d9c44277cb81.dir
+      size: 542219863
+      nfiles: 4
+    - path: src/sentiment
+      hash: md5
+      md5: d92a7d8fcd5bb493b9334e0a9104036f.dir
+      size: 369541
+      nfiles: 32
+    params:
+      params.yaml:
+        paths.interim_dir: data/interim
+        paths.model_dir: models/phobert-sentiment/latest
+        paths.sentiment_dir: data/sentiment
+        sentiment.batch_size: 32
+        sentiment.max_length: 256
+    outs:
+    - path: data/sentiment/article_sentiment_scores.parquet
+      hash: md5
+      md5: 1407c68ccad71b87d1bf3dadf986eeb1
+      size: 5219060
+    - path: data/sentiment/article_sentiment_scores.report.json
+      hash: md5
+      md5: 46b19075044b1f182bbf5ac883737ebc
+      size: 187
+  merge_articles_sentiment:
+    cmd: python -m src.sentiment.merge_sentiment_with_articles --articles-file 
+      data/interim/articles_clean.parquet --sentiment-file 
+      data/sentiment/article_sentiment_scores.parquet --output-file 
+      data/interim/articles_with_sentiment.parquet
+    deps:
+    - path: data/interim/articles_clean.parquet
+      hash: md5
+      md5: 54ef040ef4195f2d879af0e949b3de11
+      size: 257151788
+    - path: data/sentiment/article_sentiment_scores.parquet
+      hash: md5
+      md5: 1407c68ccad71b87d1bf3dadf986eeb1
+      size: 5219060
+    - path: src/sentiment/merge_sentiment_with_articles.py
+      hash: md5
+      md5: 336806ffe4a1b2433045ad18c0c17c46
+      size: 5126
+    params:
+      params.yaml:
+        paths.interim_dir: data/interim
+        paths.sentiment_dir: data/sentiment
+    outs:
+    - path: data/interim/articles_with_sentiment.parquet
+      hash: md5
+      md5: 3f777a90cda863e905f14dbd53bc8f74
+      size: 259177067
+    - path: data/interim/articles_with_sentiment.report.json
+      hash: md5
+      md5: 07c0c431744c35b6872341c0a1aca48a
+      size: 317
+  validate_inference:
+    cmd: python -m src.sentiment.validate_inference --articles-file 
+      data/interim/articles_clean.parquet --sentiment-file 
+      data/sentiment/article_sentiment_scores.parquet --daily-news-file 
+      data/interim/daily_news_prices.parquet --report-file 
+      data/interim/sentiment_inference_validation.json
+    deps:
+    - path: data/interim/articles_clean.parquet
+      hash: md5
+      md5: 54ef040ef4195f2d879af0e949b3de11
+      size: 257151788
+    - path: data/interim/daily_news_prices.parquet
+      hash: md5
+      md5: 9a40da73eb6dc89d941dccf8523ff7aa
+      size: 165297
+    - path: data/sentiment/article_sentiment_scores.parquet
+      hash: md5
+      md5: 1407c68ccad71b87d1bf3dadf986eeb1
+      size: 5219060
+    - path: src/sentiment/validate_inference.py
+      hash: md5
+      md5: a67dcf6c93ba09f269ccef74986ace34
+      size: 9133
+    params:
+      params.yaml:
+        paths.interim_dir: data/interim
+        paths.sentiment_dir: data/sentiment
+    outs:
+    - path: data/interim/sentiment_inference_validation.json
+      hash: md5
+      md5: 47fa364989cc1e29703a94510caeca84
+      size: 3059
+  validate_daily_aggregation:
+    cmd: python -m src.sentiment.validate_daily_aggregation --sentiment-file 
+      data/sentiment/article_sentiment_scores.parquet --output-file 
+      data/interim/daily_aggregation_validation.json
+    deps:
+    - path: data/sentiment/article_sentiment_scores.parquet
+      hash: md5
+      md5: 1407c68ccad71b87d1bf3dadf986eeb1
+      size: 5219060
+    - path: src/sentiment/validate_daily_aggregation.py
+      hash: md5
+      md5: 252b74766f3015a2f8b998ef43b89b6c
+      size: 2048
+    params:
+      params.yaml:
+        paths.interim_dir: data/interim
+        paths.sentiment_dir: data/sentiment
+    outs:
+    - path: data/interim/daily_aggregation_validation.json
+      hash: md5
+      md5: deaceda56731014df7f82de9a34d628a
+      size: 194
+  build_model_frame:
+    cmd: python -m src.modeling.prepare_model_frame --prices 
+      data/raw/prices_VN.csv --daily-news data/interim/daily_news_prices.parquet
+      --sentiment data/sentiment/article_sentiment_scores.parquet 
+      --articles-clean data/interim/articles_clean.parquet --output-file 
+      data/interim/modeling_ready.parquet --target-type parkinson 
+      --sentiment-threshold 0.05
+    deps:
+    - path: data/interim/articles_clean.parquet
+      hash: md5
+      md5: 54ef040ef4195f2d879af0e949b3de11
+      size: 257151788
+    - path: data/interim/daily_news_prices.parquet
+      hash: md5
+      md5: 9a40da73eb6dc89d941dccf8523ff7aa
+      size: 165297
+    - path: data/raw/prices_VN.csv
+      hash: md5
+      md5: 8430db40dad115c3a12d6f790b0a5a13
+      size: 125850
+    - path: data/sentiment/article_sentiment_scores.parquet
+      hash: md5
+      md5: 1407c68ccad71b87d1bf3dadf986eeb1
+      size: 5219060
+    - path: src/modeling
+      hash: md5
+      md5: 22d39fa49f4b1ae204dfcaef11553dc1.dir
+      size: 243047
+      nfiles: 23
+    params:
+      params.yaml:
+        model_frame.sentiment_threshold: 0.05
+        model_frame.target_type: parkinson
+        paths.interim_dir: data/interim
+        paths.prices: data/raw/prices_VN.csv
+        paths.sentiment_dir: data/sentiment
+    outs:
+    - path: data/interim/modeling_ready.parquet
+      hash: md5
+      md5: 32aaa500921d2ea03e4e7c521d4ef6f3
+      size: 434555
+    - path: data/interim/modeling_ready.report.json
+      hash: md5
+      md5: f3d3b86d50e46f55b752e54236ca385f
+      size: 784

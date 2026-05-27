@@ -4,7 +4,19 @@ from __future__ import annotations
 
 # ruff: noqa: E402
 
+import os
+
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 import tensorflow as tf
+
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
 
 # Initialize TensorFlow backend/thread pools to prevent OpenMP deadlocks on macOS
 _ = tf.keras.layers.Dense(1)(tf.zeros((1, 1)))
@@ -92,7 +104,7 @@ def run_spec(
     if use_sentiment_features:
         feature_columns = [
             "garch_std_resid",
-            "garch_forecast_vol",
+            "garch_forecast_var",
             "abs_return",
             "n_articles",
             "n_categories",
@@ -113,7 +125,7 @@ def run_spec(
         # Ablation study: market / news-intensity controls only, no sentiment
         feature_columns = [
             "garch_std_resid",
-            "garch_forecast_vol",
+            "garch_forecast_var",
             "abs_return",
             "n_articles",
             "n_categories",
@@ -192,18 +204,26 @@ def run_garchx(args: argparse.Namespace) -> dict[str, float]:
     # Project on full set recursively using fitted parameters
     y = model_df["log_return"].to_numpy() * 100.0
     x_exog = model_df["lag_mean_sentiment"].to_numpy()
+    c = garchx_fit.c
+    phi = garchx_fit.phi
     omega = garchx_fit.omega
     alpha = garchx_fit.alpha
     beta = garchx_fit.beta
     gamma = garchx_fit.gamma
 
     sample_var = float(np.var(y, ddof=1))
+
+    e = np.empty_like(y)
+    e[0] = y[0] - c
+    for idx in range(1, len(y)):
+        e[idx] = y[idx] - c - phi * y[idx - 1]
+
     sigma2 = np.empty_like(y)
     sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
     for idx in range(1, len(y)):
         sigma2[idx] = (
             omega
-            + alpha * y[idx - 1] ** 2
+            + alpha * e[idx - 1] ** 2
             + beta * sigma2[idx - 1]
             + gamma * x_exog[idx - 1]
         )
@@ -217,7 +237,7 @@ def run_garchx(args: argparse.Namespace) -> dict[str, float]:
         forecast_vol[idx] = (
             np.sqrt(
                 omega
-                + alpha * y[idx - 1] ** 2
+                + alpha * e[idx - 1] ** 2
                 + beta * sigma2[idx - 1]
                 + gamma * x_exog[idx - 1]
             )
@@ -234,14 +254,22 @@ def run_garchx(args: argparse.Namespace) -> dict[str, float]:
     # Fit GARCH baseline for comparison
     garch_fit = fit_garch11_baseline(train_df["log_return"])
     y_baseline = model_df["log_return"].to_numpy() * 100.0
+    c_b = garch_fit.c
+    phi_b = garch_fit.phi
     omega_b = garch_fit.omega
     alpha_b = garch_fit.alpha
     beta_b = garch_fit.beta
+
+    e_b = np.empty_like(y_baseline)
+    e_b[0] = y_baseline[0] - c_b
+    for idx in range(1, len(y_baseline)):
+        e_b[idx] = y_baseline[idx] - c_b - phi_b * y_baseline[idx - 1]
+
     sigma2_b = np.empty_like(y_baseline)
     sigma2_b[0] = max(sample_var, omega_b / max(1e-6, 1.0 - alpha_b - beta_b))
     for idx in range(1, len(y_baseline)):
         sigma2_b[idx] = (
-            omega_b + alpha_b * y_baseline[idx - 1] ** 2 + beta_b * sigma2_b[idx - 1]
+            omega_b + alpha_b * e_b[idx - 1] ** 2 + beta_b * sigma2_b[idx - 1]
         )
 
     forecast_b = np.empty_like(sigma2_b)
@@ -250,11 +278,7 @@ def run_garchx(args: argparse.Namespace) -> dict[str, float]:
     )
     for idx in range(1, len(y_baseline)):
         forecast_b[idx] = (
-            np.sqrt(
-                omega_b
-                + alpha_b * y_baseline[idx - 1] ** 2
-                + beta_b * sigma2_b[idx - 1]
-            )
+            np.sqrt(omega_b + alpha_b * e_b[idx - 1] ** 2 + beta_b * sigma2_b[idx - 1])
             / 100.0
         )
 
@@ -312,6 +336,8 @@ def run_expanding_garch_eval(args: argparse.Namespace) -> dict[str, float]:
 
     model_df["garch_conditional_vol"] = fitted
     model_df["garch_forecast_vol"] = forecast
+    model_df["garch_conditional_var"] = fitted**2
+    model_df["garch_forecast_var"] = forecast**2
     model_df["garch_std_resid"] = zscore
     model_df["hybrid_residual_target"] = (
         model_df["target_next_vol"] - model_df["garch_forecast_vol"]
@@ -319,7 +345,7 @@ def run_expanding_garch_eval(args: argparse.Namespace) -> dict[str, float]:
 
     feature_columns = [
         "garch_std_resid",
-        "garch_forecast_vol",
+        "garch_forecast_var",
         "abs_return",
         "n_articles",
         "n_categories",

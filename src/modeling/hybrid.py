@@ -4,7 +4,19 @@ from __future__ import annotations
 
 # ruff: noqa: E402
 
+import os
+
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 import tensorflow as tf
+
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
 
 # Initialize TensorFlow backend/thread pools to prevent OpenMP deadlocks on macOS
 _ = tf.keras.layers.Dense(1)(tf.zeros((1, 1)))
@@ -26,6 +38,8 @@ class GarchFitResult:
     variance_forecast: np.ndarray
     standardized_residuals: np.ndarray
     loss: float
+    c: float = 0.0
+    phi: float = 0.0
     gamma: float = 0.0
 
 
@@ -41,7 +55,7 @@ class HybridForecastResult:
 def fit_garch11_baseline(
     returns: Iterable[float], scale: float = 100.0
 ) -> GarchFitResult:
-    """Estimate a Gaussian GARCH(1,1) model with constrained MLE."""
+    """Estimate a Gaussian AR(1)-GARCH(1,1) model with constrained MLE."""
     series = pd.Series(np.asarray(list(returns), dtype=float)).dropna()
     if len(series) < 30:
         raise ValueError(
@@ -51,30 +65,49 @@ def fit_garch11_baseline(
     y = (series.to_numpy(copy=True)) * scale
     sample_var = float(np.var(y, ddof=1))
 
-    def unpack(theta: np.ndarray) -> tuple[float, float, float]:
-        omega, alpha, beta = theta
-        if omega <= 0 or alpha < 0 or beta < 0 or alpha + beta >= 0.999:
-            return np.nan, np.nan, np.nan
-        return float(omega), float(alpha), float(beta)
+    def unpack(theta: np.ndarray) -> tuple[float, float, float, float, float]:
+        c, phi, omega, alpha, beta = theta
+        if (
+            omega <= 0
+            or alpha < 0
+            or beta < 0
+            or alpha + beta >= 0.999
+            or abs(phi) >= 1.0
+        ):
+            return np.nan, np.nan, np.nan, np.nan, np.nan
+        return float(c), float(phi), float(omega), float(alpha), float(beta)
 
     def neg_loglike(theta: np.ndarray) -> float:
-        omega, alpha, beta = unpack(theta)
+        c, phi, omega, alpha, beta = unpack(theta)
         if np.isnan(omega):
             return 1e12
+
+        e = np.empty_like(y)
+        e[0] = y[0] - c
+        for idx in range(1, len(y)):
+            e[idx] = y[idx] - c - phi * y[idx - 1]
 
         sigma2 = np.empty_like(y)
         sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
         for idx in range(1, len(y)):
-            sigma2[idx] = omega + alpha * y[idx - 1] ** 2 + beta * sigma2[idx - 1]
+            sigma2[idx] = omega + alpha * e[idx - 1] ** 2 + beta * sigma2[idx - 1]
             if sigma2[idx] <= 0 or not np.isfinite(sigma2[idx]):
                 return 1e12
 
-        ll = -0.5 * (np.log(2 * np.pi) + np.log(sigma2) + (y**2) / sigma2)
+        ll = -0.5 * (np.log(2 * np.pi) + np.log(sigma2) + (e**2) / sigma2)
         return float(-np.sum(ll))
 
-    initial = np.array([sample_var * 0.05, 0.08, 0.9], dtype=float)
-    bounds = [(1e-9, None), (1e-9, 0.999), (1e-9, 0.999)]
-    constraints = [{"type": "ineq", "fun": lambda x: 0.999 - x[1] - x[2]}]
+    mean_y = float(np.mean(y))
+    if len(y) > 1:
+        phi_init = float(np.corrcoef(y[:-1], y[1:])[0, 1])
+        if not np.isfinite(phi_init) or abs(phi_init) >= 0.9:
+            phi_init = 0.05
+    else:
+        phi_init = 0.05
+
+    initial = np.array([mean_y, phi_init, sample_var * 0.05, 0.08, 0.9], dtype=float)
+    bounds = [(None, None), (-0.999, 0.999), (1e-9, None), (1e-9, None), (1e-9, None)]
+    constraints = [{"type": "ineq", "fun": lambda x: 0.999 - x[3] - x[4]}]
     result = minimize(
         neg_loglike,
         x0=initial,
@@ -85,16 +118,22 @@ def fit_garch11_baseline(
     if not result.success:
         raise RuntimeError(f"GARCH optimization failed: {result.message}")
 
-    omega, alpha, beta = unpack(result.x)
+    c, phi, omega, alpha, beta = unpack(result.x)
+
+    e = np.empty_like(y)
+    e[0] = y[0] - c
+    for idx in range(1, len(y)):
+        e[idx] = y[idx] - c - phi * y[idx - 1]
+
     sigma2 = np.empty_like(y)
     sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
     for idx in range(1, len(y)):
-        sigma2[idx] = omega + alpha * y[idx - 1] ** 2 + beta * sigma2[idx - 1]
+        sigma2[idx] = omega + alpha * e[idx - 1] ** 2 + beta * sigma2[idx - 1]
 
     forecast = np.empty_like(sigma2)
-    forecast[:-1] = omega + alpha * y[:-1] ** 2 + beta * sigma2[:-1]
+    forecast[:-1] = omega + alpha * e[:-1] ** 2 + beta * sigma2[:-1]
     forecast[-1] = omega + (alpha + beta) * sigma2[-1]
-    standardized = y / np.sqrt(sigma2)
+    standardized = e / np.sqrt(sigma2)
 
     return GarchFitResult(
         omega=omega,
@@ -104,6 +143,8 @@ def fit_garch11_baseline(
         variance_forecast=forecast / (scale**2),
         standardized_residuals=standardized,
         loss=float(result.fun),
+        c=c,
+        phi=phi,
     )
 
 
@@ -112,7 +153,7 @@ def fit_garchx11_baseline(
     exog: Iterable[float],
     scale: float = 100.0,
 ) -> GarchFitResult:
-    """Estimate a GARCH-X(1,1) model with an exogenous variable in the variance equation."""
+    """Estimate an AR(1)-GARCH-X(1,1) model with an exogenous variable in the variance equation."""
     series = pd.Series(np.asarray(list(returns), dtype=float)).dropna()
     exog_series = pd.Series(np.asarray(list(exog), dtype=float)).loc[series.index]
     if len(series) < 30:
@@ -122,36 +163,70 @@ def fit_garchx11_baseline(
     x_exog = exog_series.to_numpy(copy=True)
     sample_var = float(np.var(y, ddof=1))
 
-    def unpack(theta: np.ndarray) -> tuple[float, float, float, float]:
-        omega, alpha, beta, gamma = theta
-        if omega <= 0 or alpha < 0 or beta < 0 or alpha + beta >= 0.999:
-            return np.nan, np.nan, np.nan, np.nan
-        return float(omega), float(alpha), float(beta), float(gamma)
+    def unpack(theta: np.ndarray) -> tuple[float, float, float, float, float, float]:
+        c, phi, omega, alpha, beta, gamma = theta
+        if (
+            omega <= 0
+            or alpha < 0
+            or beta < 0
+            or alpha + beta >= 0.999
+            or abs(phi) >= 1.0
+        ):
+            return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
+        return (
+            float(c),
+            float(phi),
+            float(omega),
+            float(alpha),
+            float(beta),
+            float(gamma),
+        )
 
     def neg_loglike(theta: np.ndarray) -> float:
-        omega, alpha, beta, gamma = unpack(theta)
+        c, phi, omega, alpha, beta, gamma = unpack(theta)
         if np.isnan(omega):
             return 1e12
+
+        e = np.empty_like(y)
+        e[0] = y[0] - c
+        for idx in range(1, len(y)):
+            e[idx] = y[idx] - c - phi * y[idx - 1]
 
         sigma2 = np.empty_like(y)
         sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
         for idx in range(1, len(y)):
             sigma2[idx] = (
                 omega
-                + alpha * y[idx - 1] ** 2
+                + alpha * e[idx - 1] ** 2
                 + beta * sigma2[idx - 1]
                 + gamma * x_exog[idx - 1]
             )
             if sigma2[idx] <= 0 or not np.isfinite(sigma2[idx]):
                 return 1e12
 
-        ll = -0.5 * (np.log(2 * np.pi) + np.log(sigma2) + (y**2) / sigma2)
+        ll = -0.5 * (np.log(2 * np.pi) + np.log(sigma2) + (e**2) / sigma2)
         return float(-np.sum(ll))
 
-    # Initialize gamma to 0.0
-    initial = np.array([sample_var * 0.05, 0.08, 0.9, 0.0], dtype=float)
-    bounds = [(1e-9, None), (1e-9, 0.999), (1e-9, 0.999), (None, None)]
-    constraints = [{"type": "ineq", "fun": lambda x: 0.999 - x[1] - x[2]}]
+    mean_y = float(np.mean(y))
+    if len(y) > 1:
+        phi_init = float(np.corrcoef(y[:-1], y[1:])[0, 1])
+        if not np.isfinite(phi_init) or abs(phi_init) >= 0.9:
+            phi_init = 0.05
+    else:
+        phi_init = 0.05
+
+    initial = np.array(
+        [mean_y, phi_init, sample_var * 0.05, 0.08, 0.9, 0.0], dtype=float
+    )
+    bounds = [
+        (None, None),
+        (-0.999, 0.999),
+        (1e-9, None),
+        (1e-9, None),
+        (1e-9, None),
+        (None, None),
+    ]
+    constraints = [{"type": "ineq", "fun": lambda x: 0.999 - x[3] - x[4]}]
     result = minimize(
         neg_loglike,
         x0=initial,
@@ -162,23 +237,29 @@ def fit_garchx11_baseline(
     if not result.success:
         raise RuntimeError(f"GARCH-X optimization failed: {result.message}")
 
-    omega, alpha, beta, gamma = unpack(result.x)
+    c, phi, omega, alpha, beta, gamma = unpack(result.x)
+
+    e = np.empty_like(y)
+    e[0] = y[0] - c
+    for idx in range(1, len(y)):
+        e[idx] = y[idx] - c - phi * y[idx - 1]
+
     sigma2 = np.empty_like(y)
     sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
     for idx in range(1, len(y)):
         sigma2[idx] = (
             omega
-            + alpha * y[idx - 1] ** 2
+            + alpha * e[idx - 1] ** 2
             + beta * sigma2[idx - 1]
             + gamma * x_exog[idx - 1]
         )
 
     forecast = np.empty_like(sigma2)
     forecast[:-1] = (
-        omega + alpha * y[:-1] ** 2 + beta * sigma2[:-1] + gamma * x_exog[:-1]
+        omega + alpha * e[:-1] ** 2 + beta * sigma2[:-1] + gamma * x_exog[:-1]
     )
     forecast[-1] = omega + (alpha + beta) * sigma2[-1] + gamma * x_exog[-1]
-    standardized = y / np.sqrt(sigma2)
+    standardized = e / np.sqrt(sigma2)
 
     return GarchFitResult(
         omega=omega,
@@ -188,6 +269,8 @@ def fit_garchx11_baseline(
         variance_forecast=forecast / (scale**2),
         standardized_residuals=standardized,
         loss=float(result.fun),
+        c=c,
+        phi=phi,
         gamma=gamma,
     )
 
@@ -198,9 +281,9 @@ def fit_expanding_garch(
     reestimate_freq: int = 21,
     scale: float = 100.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Perform expanding-window GARCH(1,1) volatility forecasting without look-ahead leakage.
+    """Perform expanding-window AR(1)-GARCH(1,1) volatility forecasting without look-ahead leakage.
 
-    Re-estimates parameters omega, alpha, beta every reestimate_freq steps.
+    Re-estimates parameters c, phi, omega, alpha, beta every reestimate_freq steps.
     """
     series = pd.Series(np.asarray(list(returns), dtype=float)).dropna()
     y = series.to_numpy(copy=True) * scale
@@ -210,33 +293,47 @@ def fit_expanding_garch(
     forecast = np.empty(n)
 
     garch_init = fit_garch11_baseline(series.iloc[:train_len], scale=scale)
+    c = garch_init.c
+    phi = garch_init.phi
     omega = garch_init.omega
     alpha = garch_init.alpha
     beta = garch_init.beta
 
+    e = np.empty(n)
+    e[0] = y[0] - c
+    for idx in range(1, n):
+        e[idx] = y[idx] - c - phi * y[idx - 1]
+
     sample_var = float(np.var(y[:train_len], ddof=1))
     sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
-    forecast[0] = omega + alpha * y[0] ** 2 + beta * sigma2[0]
+    forecast[0] = omega + alpha * e[0] ** 2 + beta * sigma2[0]
 
     for idx in range(1, n):
         if idx >= train_len and (idx - train_len) % reestimate_freq == 0:
             try:
                 garch_temp = fit_garch11_baseline(series.iloc[:idx], scale=scale)
+                c = garch_temp.c
+                phi = garch_temp.phi
                 omega = garch_temp.omega
                 alpha = garch_temp.alpha
                 beta = garch_temp.beta
+
+                # Recalculate residuals up to idx using new parameters
+                e[0] = y[0] - c
+                for j in range(1, idx + 1):
+                    e[j] = y[j] - c - phi * y[j - 1]
             except Exception:
                 pass
 
-        sigma2[idx] = omega + alpha * y[idx - 1] ** 2 + beta * sigma2[idx - 1]
+        sigma2[idx] = omega + alpha * e[idx - 1] ** 2 + beta * sigma2[idx - 1]
         if idx < n - 1:
-            forecast[idx] = omega + alpha * y[idx] ** 2 + beta * sigma2[idx]
+            forecast[idx] = omega + alpha * e[idx] ** 2 + beta * sigma2[idx]
         else:
             forecast[idx] = omega + (alpha + beta) * sigma2[idx]
 
     conditional_vol = np.sqrt(sigma2) / scale
     forecast_vol = np.sqrt(forecast) / scale
-    std_resid = y / np.sqrt(sigma2)
+    std_resid = e / np.sqrt(sigma2)
     return conditional_vol, forecast_vol, std_resid
 
 
@@ -247,11 +344,11 @@ def add_garch_features(
     target_column: str = "target_next_vol",
     train_end: str | pd.Timestamp | None = None,
 ) -> pd.DataFrame:
-    """Append GARCH variance forecasts and residual targets to the model frame.
+    """Append GARCH variance and volatility forecasts and residual targets to the model frame.
 
-    If train_end is specified, fits parameters omega, alpha, beta, and training
+    If train_end is specified, fits parameters c, phi, omega, alpha, beta, and training
     variance using only returns up to train_end to prevent look-ahead leakage,
-    then projects GARCH volatility forecasts and standardized residuals over
+    then projects GARCH variance forecasts and standardized residuals over
     the entire dataset using those fitted parameters.
     """
     df = model_df.copy()
@@ -270,6 +367,8 @@ def add_garch_features(
 
         # Fit GARCH baseline on training return series only
         garch_train = fit_garch11_baseline(train_returns, scale=scale)
+        c = garch_train.c
+        phi = garch_train.phi
         omega = garch_train.omega
         alpha = garch_train.alpha
         beta = garch_train.beta
@@ -277,36 +376,51 @@ def add_garch_features(
         # Project over the entire series using fitted parameters
         sample_var = float(np.var(train_returns.to_numpy(copy=True) * scale, ddof=1))
 
+        e = np.empty_like(y)
+        e[0] = y[0] - c
+        for idx in range(1, len(y)):
+            e[idx] = y[idx] - c - phi * y[idx - 1]
+
         sigma2 = np.empty_like(y)
         sigma2[0] = max(sample_var, omega / max(1e-6, 1.0 - alpha - beta))
         for idx in range(1, len(y)):
-            sigma2[idx] = omega + alpha * y[idx - 1] ** 2 + beta * sigma2[idx - 1]
+            sigma2[idx] = omega + alpha * e[idx - 1] ** 2 + beta * sigma2[idx - 1]
 
         forecast = np.empty_like(sigma2)
-        forecast[:-1] = omega + alpha * y[:-1] ** 2 + beta * sigma2[:-1]
+        forecast[:-1] = omega + alpha * e[:-1] ** 2 + beta * sigma2[:-1]
         forecast[-1] = omega + (alpha + beta) * sigma2[-1]
-        standardized = y / np.sqrt(sigma2)
+        standardized = e / np.sqrt(sigma2)
 
         # Convert variance back to volatility scale
         fitted_vol = np.sqrt(sigma2) / scale
         forecast_vol = np.sqrt(forecast) / scale
+        fitted_var = sigma2 / (scale**2)
+        forecast_var = forecast / (scale**2)
     else:
         # Fallback: fit on the full sample (original behavior)
         garch = fit_garch11_baseline(series, scale=scale)
         fitted_vol = np.sqrt(garch.conditional_variance)
         forecast_vol = np.sqrt(garch.variance_forecast)
+        fitted_var = garch.conditional_variance
+        forecast_var = garch.variance_forecast
         standardized = garch.standardized_residuals
 
     fitted = pd.Series(index=df.index, dtype=float)
     forecast_series = pd.Series(index=df.index, dtype=float)
+    fitted_var_series = pd.Series(index=df.index, dtype=float)
+    forecast_var_series = pd.Series(index=df.index, dtype=float)
     zscore = pd.Series(index=df.index, dtype=float)
 
     fitted.loc[valid_index] = fitted_vol
     forecast_series.loc[valid_index] = forecast_vol
+    fitted_var_series.loc[valid_index] = fitted_var
+    forecast_var_series.loc[valid_index] = forecast_var
     zscore.loc[valid_index] = standardized
 
     df["garch_conditional_vol"] = fitted
     df["garch_forecast_vol"] = forecast_series
+    df["garch_conditional_var"] = fitted_var_series
+    df["garch_forecast_var"] = forecast_var_series
     df["garch_std_resid"] = zscore
     df["hybrid_residual_target"] = df[target_column] - df["garch_forecast_vol"]
     return df
@@ -349,11 +463,11 @@ def build_lstm_sequences(
         baseline_values.append(float(target_row.get("garch_forecast_vol", np.nan)))
         realized_values.append(float(target_row.get("target_next_vol", np.nan)))
 
-    x = np.asarray(x_values, dtype=float)
-    y = np.asarray(y_values, dtype=float).reshape(-1, 1)
+    x = np.asarray(x_values, dtype=np.float32)
+    y = np.asarray(y_values, dtype=np.float32).reshape(-1, 1)
     anchor_dates_arr = np.asarray(anchor_dates)
-    baseline_arr = np.asarray(baseline_values, dtype=float).reshape(-1, 1)
-    realized_arr = np.asarray(realized_values, dtype=float).reshape(-1, 1)
+    baseline_arr = np.asarray(baseline_values, dtype=np.float32).reshape(-1, 1)
+    realized_arr = np.asarray(realized_values, dtype=np.float32).reshape(-1, 1)
 
     if split_dates is None:
         train_cut = int(len(x) * 0.7)
@@ -408,8 +522,7 @@ def train_lstm_residual_model(
     model = tf.keras.Sequential(
         [
             tf.keras.layers.Input(shape=sequences["x_train"].shape[1:]),
-            tf.keras.layers.Masking(mask_value=0.0),
-            tf.keras.layers.LSTM(lstm_units),
+            tf.keras.layers.LSTM(lstm_units, unroll=True),
             tf.keras.layers.Dense(16, activation="relu"),
             tf.keras.layers.Dense(1),
         ]
@@ -418,20 +531,25 @@ def train_lstm_residual_model(
         optimizer="adam", loss="mse", metrics=[tf.keras.metrics.MeanAbsoluteError()]
     )
 
-    callbacks = [
-        tf.keras.callbacks.EarlyStopping(
-            monitor="val_loss",
-            patience=5,
-            restore_best_weights=True,
+    has_validation = "x_val" in sequences and len(sequences["x_val"]) > 0
+    callbacks = []
+    if has_validation:
+        callbacks.append(
+            tf.keras.callbacks.EarlyStopping(
+                monitor="val_loss",
+                patience=5,
+                restore_best_weights=True,
+            )
         )
-    ]
     history = model.fit(
         sequences["x_train"],
         sequences["y_train"],
-        validation_data=(sequences["x_val"], sequences["y_val"]),
+        validation_data=(sequences["x_val"], sequences["y_val"])
+        if has_validation
+        else None,
         epochs=epochs,
         batch_size=batch_size,
-        verbose=0,
+        verbose=2,
         callbacks=callbacks,
     )
     return model, history

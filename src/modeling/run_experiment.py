@@ -4,7 +4,19 @@ from __future__ import annotations
 
 # ruff: noqa: E402
 
+import os
+
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 import tensorflow as tf
+
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
 
 # Initialize TensorFlow backend/thread pools to prevent OpenMP deadlocks on macOS
 _ = tf.keras.layers.Dense(1)(tf.zeros((1, 1)))
@@ -112,7 +124,7 @@ def main() -> None:
 
         feature_columns = [
             "garch_std_resid",
-            "garch_forecast_vol",
+            "garch_forecast_var",
             "abs_return",
             "n_articles",
             "n_categories",

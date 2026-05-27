@@ -306,6 +306,9 @@ def test_fit_garch11_baseline_returns_positive_variance():
     assert result.omega > 0
     assert result.alpha >= 0
     assert result.beta >= 0
+    assert isinstance(result.c, float)
+    assert isinstance(result.phi, float)
+    assert abs(result.phi) < 1.0
     assert np.all(result.conditional_variance > 0)
     assert len(result.standardized_residuals) == len(returns)
 
@@ -326,8 +329,11 @@ def test_add_garch_features_train_end():
     df_leakfree = add_garch_features(df, train_end="2024-02-15")
     assert "garch_conditional_vol" in df_leakfree.columns
     assert "garch_forecast_vol" in df_leakfree.columns
+    assert "garch_conditional_var" in df_leakfree.columns
+    assert "garch_forecast_var" in df_leakfree.columns
     assert "garch_std_resid" in df_leakfree.columns
     assert not df_leakfree["garch_forecast_vol"].isna().all()
+    assert not df_leakfree["garch_forecast_var"].isna().all()
 
 
 def test_build_lstm_sequences_splits_temporally():

@@ -1,7 +1,7 @@
 \section{Empirical Results}
 
 \subsection{Descriptive Statistics \& GARCH Diagnostics}
-We begin by analyzing the statistical properties of the daily log returns of the VN-Index and the CafeF news sentiment scores. Over the ten-year sample period (2015--2024), which comprises $2,497$ active trading days, the VN-Index return series displays typical financial time-series characteristics. Table~\ref{tab:descriptive_stats} presents the descriptive statistics for returns, news sentiment, and daily article counts.
+We begin by analyzing the statistical properties of the daily log returns of the VN-Index and the CafeF news sentiment scores. Over the ten-year sample period (2015--2024), the daily panel contains $2,498$ trading-day rows and $2,497$ one-step-ahead volatility targets after the lead shift. The VN-Index return series displays typical financial time-series characteristics. Table~\ref{tab:descriptive_stats} presents the descriptive statistics for returns, news sentiment, and daily article counts.
 
 \begin{table}[htbp]
     \centering
@@ -12,7 +12,7 @@ We begin by analyzing the statistical properties of the daily log returns of the
         Series & Mean & Std. Dev. & Minimum & Maximum & Kurtosis \\
         \midrule
         VN-Index Returns (\%) & 0.0338 & 1.1390 & -6.9076 & 4.8600 & 7.5934 \\
-        News Sentiment Score & 0.4526 & 0.3694 & -0.9622 & 0.9991 & -- \\
+        Article Sentiment Score & 0.4526 & 0.3694 & -0.9622 & 0.9991 & -- \\
         Daily News Volume & 34.5 & 28.7 & 0 & 386 & -- \\
         \bottomrule
     \end{tabular}
@@ -36,7 +36,7 @@ The Ljung-Box Q-test indicates significant autocorrelation in returns ($Q(5) = 1
     \label{fig:vol_clustering}
 \end{figure}
 
-For the news sentiment series, we analyze the aggregate corpus of $86,179$ articles. As shown in Table~\ref{tab:descriptive_stats}, the mean sentiment score is $0.4526$, indicating a pronounced positive linguistic bias in Vietnamese financial media sitemaps. Figure~\ref{fig:sentiment_distribution} displays the histogram of individual article sentiment scores. Under a standard threshold of $\pm 0.05$, positive articles account for $84.34\%$ ($72,686$ articles) of the corpus, while negative articles represent only $12.04\%$ ($10,380$ articles) and neutral articles constitute $3.61\%$ ($3,113$ articles). 
+For the news sentiment series, we analyze the aggregate corpus of $86,179$ articles. As shown in Table~\ref{tab:descriptive_stats}, the mean sentiment score is $0.4526$, indicating a pronounced positive linguistic bias in Vietnamese financial media. Figure~\ref{fig:sentiment_distribution} displays the histogram of individual article sentiment scores. Under a standard threshold of $\pm 0.05$, positive articles account for $84.34\%$ ($72,686$ articles) of the corpus, while negative articles represent only $12.04\%$ ($10,380$ articles) and neutral articles constitute $3.61\%$ ($3,113$ articles). 
 
 \begin{figure}[htbp]
     \centering
@@ -45,18 +45,18 @@ For the news sentiment series, we analyze the aggregate corpus of $86,179$ artic
     \label{fig:sentiment_distribution}
 \end{figure}
 
-The daily article count averages $34.5$ articles per day, with a standard deviation of $28.7$, reaching a maximum of $386$ articles on high-intensity trading days. Notably, out of $2,497$ trading days, only $4$ days ($0.16\%$) had zero aligned news articles, confirming that financial news sitemaps provide a continuous signal.
+The daily article count averages $34.5$ articles per day, with a standard deviation of $28.7$, reaching a maximum of $386$ articles on high-intensity trading days. Notably, out of $2,498$ trading days, only $4$ days ($0.16\%$) had zero aligned news articles, confirming that financial news sitemaps provide a continuous signal.
 
 In the first stage of our methodology, we fit the baseline Gaussian GARCH(1,1) model on the training partition (2015--2021). The estimated MLE parameters (standard errors in parentheses) are:
 $$\omega = 0.0258, \quad \alpha = 0.1026, \quad \beta = 0.8810$$
 The parameter sum $\alpha + \beta = 0.9836 < 1.0$ confirms covariance stationarity, representing high volatility persistence. To ensure the baseline model is well-specified, we test the standardized residuals. The Ljung-Box p-values for squared standardized residuals are $0.9796$ (lag 5) and $0.4956$ (lag 10). Both are far above the $5\%$ level, failing to reject the null hypothesis of no remaining ARCH effects and confirming that the baseline GARCH model successfully captures the linear time-series dynamics of conditional variance.
 
 \subsection{Volatility Forecast Performance}
-Table~\ref{tab:forecasting_results} compares the out-of-sample point forecast accuracy of the GARCH baseline and the Hybrid GARCH + Sentiment LSTM model over the test split (2023--2024). 
+Table~\ref{tab:forecasting_results} compares the out-of-sample point forecast accuracy of the GARCH baseline and the Hybrid GARCH + Sentiment LSTM model over the held-out test window. 
 
 \begin{table}[htbp]
     \centering
-    \caption{Out-of-Sample Volatility Forecast Performance (2023--2024)}
+    \caption{Out-of-Sample Volatility Forecast Performance}
     \label{tab:forecasting_results}
     \begin{tabular}{lccc}
         \toprule
@@ -76,7 +76,7 @@ To test whether the difference in forecast errors is statistically significant, 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{figures/forecast_comparison.png}
-    \caption{Out-of-Sample Volatility Forecast Comparison vs. Realized Volatility (2023--2024)}
+    \caption{Out-of-Sample Volatility Forecast Comparison vs. Realized Volatility}
     \label{fig:forecast_comparison}
 \end{figure}
 
@@ -84,7 +84,7 @@ To test whether the difference in forecast errors is statistically significant, 
 To understand when the hybrid model adds value, we segment the out-of-sample test split into calm and volatile (shock) regimes based on the median realized volatility. The results are highly regime-sensitive:
 \begin{itemize}
     \item \textbf{Calm Volatility Regimes ($125$ days):} The GARCH baseline tends to overestimate volatility during calm periods due to its slow adjustment speed. The Hybrid GARCH + Sentiment LSTM model successfully corrects this bias, reducing the forecast RMSE by $51.05\%$ ($0.002411$ vs $0.004926$) and the MAE by $61.48\%$ ($0.001746$ vs $0.004533$).
-    \item \textbf{High Volatility/Shock Regimes ($124$ days):} During periods of market crashes or extreme volatility spikes, the hybrid model performs worse than the baseline, with RMSE increasing by $15.50\%$ ($0.005156$ vs $0.004464$) and MAE increasing by $12.83\%$ ($0.003518$ vs $0.003118$). This suggests that the LSTM stage can overreact or mispredict during rare, extreme market shocks that were underrepresented in the training sequence, whereas the baseline GARCH(1,1) model's mathematical bounds provide greater stability.
+    \item \textbf{High Volatility/Shock Regimes ($124$ days):} During periods of extreme volatility spikes, the hybrid model performs worse than the baseline, with RMSE increasing by $15.50\%$ ($0.005156$ vs $0.004464$) and MAE increasing by $12.83\%$ ($0.003518$ vs $0.003118$). This suggests that the LSTM stage can overreact or mispredict during rare shocks that were underrepresented in the training sequence, whereas the baseline GARCH(1,1) model's mathematical bounds provide greater stability.
 \end{itemize}
 
 \subsection{Robustness Checks}
@@ -114,7 +114,7 @@ We report the point forecast metrics and Diebold-Mariano test results across all
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{figures/robustness_comparison.png}
-    \caption{Volatility Forecast RMSE (\%) Comparison across Robustness Specifications}
+    \caption{Volatility Forecast RMSE Comparison across Robustness Specifications}
     \label{fig:robustness_comparison}
 \end{figure}
 

@@ -42,9 +42,6 @@ stages:
       python -m src.modeling.run_robustness
       --prices ${paths.prices}
       --model-frame ${paths.interim_dir}/modeling_ready.parquet
-      --daily-news ${paths.interim_dir}/daily_news_prices.parquet
-      --sentiment ${paths.sentiment_dir}/article_sentiment_scores.parquet
-      --articles-clean ${paths.interim_dir}/articles_clean.parquet
       --sequence-length ${volatility.sequence_length}
       --train-end ${volatility.train_end}
       --val-end ${volatility.val_end}
@@ -55,13 +52,9 @@ stages:
       - src/modeling
       - ${paths.prices}
       - ${paths.interim_dir}/modeling_ready.parquet
-      - ${paths.interim_dir}/daily_news_prices.parquet
-      - ${paths.sentiment_dir}/article_sentiment_scores.parquet
-      - ${paths.interim_dir}/articles_clean.parquet
     params:
       - paths.prices
       - paths.interim_dir
-      - paths.sentiment_dir
       - volatility.sequence_length
       - volatility.train_end
       - volatility.val_end

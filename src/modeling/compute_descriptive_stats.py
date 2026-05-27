@@ -1,9 +1,18 @@
 """Compute descriptive statistics and GARCH diagnostics for VN-Index returns and news sentiment."""
 
+from __future__ import annotations
+
+import argparse
+import logging
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from scipy.stats import jarque_bera, chi2
+
+from src.utils.io import read_parquet_table
+
+logger = logging.getLogger(__name__)
 
 
 def ljung_box_test(x: np.ndarray, lags: list[int]) -> dict[int, tuple[float, float]]:
@@ -32,77 +41,94 @@ def ljung_box_test(x: np.ndarray, lags: list[int]) -> dict[int, tuple[float, flo
     return results
 
 
-def main() -> None:
-    # 1. Paths
-    prices_path = Path("data/raw/prices_VN.csv")
-    articles_path = Path("data/interim/articles_clean.parquet")
-    sentiment_path = Path("data/sentiment/article_sentiment_scores.parquet")
-    daily_news_path = Path("data/interim/daily_news_prices.parquet")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Compute descriptive statistics and write a LaTeX table."
+    )
+    parser.add_argument("--prices", default="data/raw/prices_VN.csv")
+    parser.add_argument(
+        "--articles-clean", default="data/interim/articles_clean.parquet"
+    )
+    parser.add_argument(
+        "--sentiment",
+        default="data/sentiment/article_sentiment_scores.parquet",
+    )
+    parser.add_argument(
+        "--daily-news", default="data/interim/daily_news_prices.parquet"
+    )
+    parser.add_argument("--output-dir", default="report/tables")
+    return parser.parse_args()
 
-    output_dir = Path("report/tables")
+
+def main() -> None:
+    args = parse_args()
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+    output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("--- Loading Datasets ---")
-    df_prices = pd.read_csv(prices_path)
-    # Rename columns to standard
+    logger.info("--- Loading Datasets ---")
+    df_prices = pd.read_csv(args.prices)
     df_prices = df_prices.rename(
         columns={"Date": "date", "Close": "close", "TRDPRC_1": "close"}
     )
-
-    # Calculate returns in percent
     df_prices["log_return"] = np.log(df_prices["close"] / df_prices["close"].shift(1))
     returns = df_prices["log_return"].dropna().to_numpy() * 100.0
 
-    # Load sentiment scores
-    df_sent = pd.read_parquet(sentiment_path)
+    df_sent = read_parquet_table(args.sentiment)
+    df_daily = read_parquet_table(args.daily_news)
+    df_art = read_parquet_table(args.articles_clean)
 
-    # Load daily aggregates
-    df_daily = pd.read_parquet(daily_news_path)
-
-    # Load clean articles
-    df_art = pd.read_parquet(articles_path)
-
-    print("\n--- VN-Index Returns Descriptive Statistics ---")
+    logger.info("--- VN-Index Returns Descriptive Statistics ---")
     n_days = len(returns)
     mean_ret = np.mean(returns)
     std_ret = np.std(returns)
     min_ret = np.min(returns)
     max_ret = np.max(returns)
 
-    # Skewness and Kurtosis
     ret_series = pd.Series(returns)
     skew_ret = ret_series.skew()
-    kurt_ret = ret_series.kurtosis() + 3.0  # Excess to total kurtosis
+    kurt_ret = ret_series.kurtosis() + 3.0
     excess_kurt_ret = ret_series.kurtosis()
 
-    # Jarque-Bera
     jb_stat, jb_pval = jarque_bera(returns)
 
-    # Ljung-Box on Returns
     lb_ret = ljung_box_test(returns, lags=[5, 10])
-
-    # Ljung-Box on Squared Returns (ARCH effects)
     squared_returns = returns**2
     lb_sq_ret = ljung_box_test(squared_returns, lags=[5, 10])
 
-    print(f"Trading Days: {n_days}")
-    print(f"Mean Return: {mean_ret:.6f}%")
-    print(f"Std Dev Return: {std_ret:.6f}%")
-    print(f"Min Return: {min_ret:.6f}%")
-    print(f"Max Return: {max_ret:.6f}%")
-    print(f"Skewness: {skew_ret:.6f}")
-    print(f"Kurtosis (Total): {kurt_ret:.6f} (Excess: {excess_kurt_ret:.6f})")
-    print(f"Jarque-Bera Stat: {jb_stat:.4f} (p-value: {jb_pval:.6e})")
-    print(f"Ljung-Box (Return, Lag 5): Q={lb_ret[5][0]:.4f}, p={lb_ret[5][1]:.6f}")
-    print(f"Ljung-Box (Return, Lag 10): Q={lb_ret[10][0]:.4f}, p={lb_ret[10][1]:.6f}")
-    print(
-        f"Ljung-Box (Sq Return, Lag 5): Q={lb_sq_ret[5][0]:.4f}, p={lb_sq_ret[5][1]:.6e}"
+    logger.info("Trading Days: %d", n_days)
+    logger.info("Mean Return: %.6f%%", mean_ret)
+    logger.info("Std Dev Return: %.6f%%", std_ret)
+    logger.info("Min Return: %.6f%%", min_ret)
+    logger.info("Max Return: %.6f%%", max_ret)
+    logger.info("Skewness: %.6f", skew_ret)
+    logger.info("Kurtosis (Total): %.6f (Excess: %.6f)", kurt_ret, excess_kurt_ret)
+    logger.info("Jarque-Bera Stat: %.4f (p-value: %.6e)", jb_stat, jb_pval)
+    logger.info(
+        "Ljung-Box (Return, Lag 5): Q=%.4f, p=%.6f",
+        lb_ret[5][0],
+        lb_ret[5][1],
     )
-    print(
-        f"Ljung-Box (Sq Return, Lag 10): Q={lb_sq_ret[10][0]:.4f}, p={lb_sq_ret[10][1]:.6e}"
+    logger.info(
+        "Ljung-Box (Return, Lag 10): Q=%.4f, p=%.6f",
+        lb_ret[10][0],
+        lb_ret[10][1],
+    )
+    logger.info(
+        "Ljung-Box (Sq Return, Lag 5): Q=%.4f, p=%.6e",
+        lb_sq_ret[5][0],
+        lb_sq_ret[5][1],
+    )
+    logger.info(
+        "Ljung-Box (Sq Return, Lag 10): Q=%.4f, p=%.6e",
+        lb_sq_ret[10][0],
+        lb_sq_ret[10][1],
     )
 
-    print("\n--- News Sitemap and Sentiment Statistics ---")
+    logger.info("--- News and Sentiment Statistics ---")
     total_articles = len(df_art)
     n_sent_articles = len(df_sent)
     mean_sent = df_sent["sentiment_score"].mean()
@@ -114,41 +140,48 @@ def main() -> None:
     neg_articles = len(df_sent[df_sent["sentiment_label"] == "negative"])
     neu_articles = len(df_sent[df_sent["sentiment_label"] == "neutral"])
 
-    print(f"Total Articles Cleaned: {total_articles}")
-    print(f"Articles with Sentiment: {n_sent_articles}")
-    print(f"Mean Sentiment Score: {mean_sent:.6f}")
-    print(f"Std Dev Sentiment Score: {std_sent:.6f}")
-    print(f"Min Sentiment Score: {min_sent:.6f}")
-    print(f"Max Sentiment Score: {max_sent:.6f}")
-    print(
-        f"Positive Articles: {pos_articles} ({pos_articles / n_sent_articles * 100:.2f}%)"
+    logger.info("Total Articles Cleaned: %d", total_articles)
+    logger.info("Articles with Sentiment: %d", n_sent_articles)
+    logger.info("Mean Sentiment Score: %.6f", mean_sent)
+    logger.info("Std Dev Sentiment Score: %.6f", std_sent)
+    logger.info("Min Sentiment Score: %.6f", min_sent)
+    logger.info("Max Sentiment Score: %.6f", max_sent)
+    logger.info(
+        "Positive Articles: %d (%.2f%%)",
+        pos_articles,
+        pos_articles / n_sent_articles * 100,
     )
-    print(
-        f"Negative Articles: {neg_articles} ({neg_articles / n_sent_articles * 100:.2f}%)"
+    logger.info(
+        "Negative Articles: %d (%.2f%%)",
+        neg_articles,
+        neg_articles / n_sent_articles * 100,
     )
-    print(
-        f"Neutral Articles: {neu_articles} ({neu_articles / n_sent_articles * 100:.2f}%)"
+    logger.info(
+        "Neutral Articles: %d (%.2f%%)",
+        neu_articles,
+        neu_articles / n_sent_articles * 100,
     )
 
-    # Daily volume of articles
     daily_articles = df_daily["n_articles"]
-    print(
-        f"\nDaily Article Volume: Mean={daily_articles.mean():.2f}, Std={daily_articles.std():.2f}, Min={daily_articles.min():.0f}, Max={daily_articles.max():.0f}"
+    logger.info(
+        "Daily Article Volume: Mean=%.2f, Std=%.2f, Min=%.0f, Max=%.0f",
+        daily_articles.mean(),
+        daily_articles.std(),
+        daily_articles.min(),
+        daily_articles.max(),
     )
-
-    # Zero-news days
     zero_news_days = (daily_articles == 0).sum()
-    print(
-        f"Zero-news trading days: {zero_news_days} ({(zero_news_days / len(df_daily)) * 100:.4f}%)"
+    logger.info(
+        "Zero-news trading days: %d (%.4f%%)",
+        zero_news_days,
+        (zero_news_days / len(df_daily)) * 100,
     )
 
-    # Category analysis
-    print("\nCategory Distribution:")
+    logger.info("Category Distribution:")
     cat_counts = df_art["category"].value_counts()
     for cat, count in cat_counts.items():
-        print(f"  - {cat}: {count} ({count / total_articles * 100:.2f}%)")
+        logger.info("  - %s: %d (%.2f%%)", cat, count, count / total_articles * 100)
 
-    # Write LaTeX descriptive statistics table
     latex_table = f"""\\begin{{table}}[htbp]
     \\centering
     \\caption{{Descriptive Statistics of VN-Index Daily Returns and News Sentiment}}
@@ -165,9 +198,10 @@ def main() -> None:
 \\end{{table}}
 """
 
-    with open(output_dir / "descriptive_stats_table.tex", "w", encoding="utf-8") as f:
+    out_path = output_dir / "descriptive_stats_table.tex"
+    with open(out_path, "w", encoding="utf-8") as f:
         f.write(latex_table)
-    print(f"\nLaTeX table written to {output_dir / 'descriptive_stats_table.tex'}")
+    logger.info("LaTeX table written -> %s", out_path)
 
 
 if __name__ == "__main__":

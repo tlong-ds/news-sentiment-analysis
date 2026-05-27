@@ -227,3 +227,28 @@ stages:
       hash: md5
       md5: f3d3b86d50e46f55b752e54236ca385f
       size: 784
+  prepare_training_data:
+    cmd: python -m src.sentiment.prepare_training_data --cafef-input 
+      data/interim/articles_clean.parquet --output-file 
+      data/interim/training_corpus.parquet
+    deps:
+    - path: data/interim/articles_clean.parquet
+      hash: md5
+      md5: 54ef040ef4195f2d879af0e949b3de11
+      size: 257151788
+    - path: src/sentiment/prepare_training_data.py
+      hash: md5
+      md5: 4e9f9050fec011582f224221766af198
+      size: 11382
+    params:
+      params.yaml:
+        paths.interim_dir: data/interim
+    outs:
+    - path: data/interim/training_corpus.parquet
+      hash: md5
+      md5: 0b0872d7448bbfa66651d714587a1b52
+      size: 138554495
+    - path: data/interim/training_corpus.report.json
+      hash: md5
+      md5: 6259fbea623428b17c3ac11aceae937c
+      size: 590

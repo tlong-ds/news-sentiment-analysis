@@ -2,42 +2,58 @@ vars:
   - ../../params.yaml
 
 stages:
-  preprocess:
+  prepare_training_data:
     wdir: ../..
     cmd: >-
-      python -m src.preprocessing.pipeline
-      --raw-news ${paths.raw_news}
-      --prices ${paths.prices}
-      --out-dir ${paths.interim_dir}
+      python -m src.sentiment.prepare_training_data
+      --cafef-input ${paths.interim_dir}/articles_clean.parquet
+      --output-file ${paths.interim_dir}/training_corpus.parquet
     deps:
-      - src/preprocessing
-      - ${paths.raw_news}
-      - ${paths.prices}
+      - src/sentiment/prepare_training_data.py
+      - ${paths.interim_dir}/articles_clean.parquet
     params:
-      - paths.raw_news
-      - paths.prices
       - paths.interim_dir
     outs:
-      - ${paths.interim_dir}/articles_clean.parquet
-      - ${paths.interim_dir}/daily_news_prices.parquet
+      - ${paths.interim_dir}/training_corpus.parquet
+      - ${paths.interim_dir}/training_corpus.report.json
 
-  prepare_inputs:
+  merge_annotations:
     wdir: ../..
     cmd: >-
-      python -m src.sentiment.prepare_inputs
-      --cafef-input ${paths.interim_dir}/articles_clean.parquet
-      --cafef-output ${paths.interim_dir}/cafef_input.parquet
-      --max-tokens ${sentiment.max_length}
-      --report-file ${paths.interim_dir}/input_preparation_report.json
+      python -m src.sentiment.merge_annotations
+      --corpus-file ${paths.interim_dir}/training_corpus.parquet
+      --annotations-file ${paths.interim_dir}/training_annotations.csv
+      --output-file ${paths.interim_dir}/training_labeled.parquet
     deps:
-      - src/sentiment
-      - ${paths.interim_dir}/articles_clean.parquet
+      - src/sentiment/merge_annotations.py
+      - ${paths.interim_dir}/training_corpus.parquet
+      - ${paths.interim_dir}/training_annotations.csv
     params:
       - paths.interim_dir
+    outs:
+      - ${paths.interim_dir}/training_labeled.parquet
+      - ${paths.interim_dir}/training_labeled.report.json
+
+  train_classifier:
+    wdir: ../..
+    cmd: >-
+      python -m src.sentiment.train_classifier
+      --labeled-input ${paths.interim_dir}/training_labeled.parquet
+      --output-dir ${paths.model_dir}
+      --epochs ${sentiment.train_epochs}
+      --batch-size ${sentiment.train_batch_size}
+      --max-length ${sentiment.max_length}
+    deps:
+      - src/sentiment/train_classifier.py
+      - ${paths.interim_dir}/training_labeled.parquet
+    params:
+      - paths.interim_dir
+      - paths.model_dir
+      - sentiment.train_epochs
+      - sentiment.train_batch_size
       - sentiment.max_length
     outs:
-      - ${paths.interim_dir}/cafef_input.parquet
-      - ${paths.interim_dir}/input_preparation_report.json
+      - ${paths.model_dir}
 
   infer_cafef:
     wdir: ../..
@@ -49,7 +65,7 @@ stages:
       --batch-size ${sentiment.batch_size}
       --max-length ${sentiment.max_length}
     deps:
-      - src/sentiment
+      - src/sentiment/infer_cafef.py
       - ${paths.model_dir}
       - ${paths.interim_dir}/cafef_input.parquet
     params:
@@ -126,7 +142,8 @@ stages:
       --target-type ${model_frame.target_type}
       --sentiment-threshold ${model_frame.sentiment_threshold}
     deps:
-      - src/modeling
+      - src/modeling/dataset.py
+      - src/modeling/prepare_model_frame.py
       - ${paths.prices}
       - ${paths.interim_dir}/daily_news_prices.parquet
       - ${paths.sentiment_dir}/article_sentiment_scores.parquet
@@ -140,4 +157,3 @@ stages:
     outs:
       - ${paths.interim_dir}/modeling_ready.parquet
       - ${paths.interim_dir}/modeling_ready.report.json
-

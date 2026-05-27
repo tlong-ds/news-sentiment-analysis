@@ -1,30 +1,32 @@
 schema: '2.0'
 stages:
   plot_results:
-    cmd: python -m src.modeling.plot_results
+    cmd: python -m src.modeling.plot_results --prices data/raw/prices_VN.csv 
+      --summary data/processed/hybrid_experiment_summary.json --output-dir 
+      report/figures
     deps:
-    - path: data/interim/hybrid_experiment_summary.json
+    - path: data/processed/hybrid_experiment_summary.json
       hash: md5
-      md5: 37bbeb750efb3edd724f26eb7fb2e9b4
-      size: 81679
+      md5: a45dbed4b328f2e9f3d66fef2fe084fd
+      size: 81763
     - path: data/raw/prices_VN.csv
       hash: md5
       md5: 8430db40dad115c3a12d6f790b0a5a13
       size: 125850
     - path: src/modeling/plot_results.py
       hash: md5
-      md5: 0d5d07ad9a0d2ee580a6951538f5e136
-      size: 6113
+      md5: 223a872043d05c79987bf9ce601891b8
+      size: 6397
     params:
       params.yaml:
         paths.prices: data/raw/prices_VN.csv
         volatility.output_experiment: 
-          data/interim/hybrid_experiment_summary.json
+          data/processed/hybrid_experiment_summary.json
     outs:
     - path: report/figures/forecast_comparison.png
       hash: md5
-      md5: 4e9f4b3574c4045e41db092210ef6a37
-      size: 389849
+      md5: e9361f520627ca47b9f5ba834af9e7f8
+      size: 390699
     - path: report/figures/return_distribution.png
       hash: md5
       md5: 38363c575ae66febe97d703733fd8a43
@@ -37,7 +39,9 @@ stages:
     cmd: python -m src.modeling.run_experiment --prices data/raw/prices_VN.csv 
       --model-frame data/interim/modeling_ready.parquet --sequence-length 15 
       --train-end 2021-12-31 --val-end 2021-12-31 --epochs 30 --batch-size 32 
-      --output data/interim/hybrid_experiment_summary.json
+      --output data/processed/hybrid_experiment_summary.json --model-output 
+      models/volatility/lstm_residual_model.pt --dataset-output 
+      data/processed/final_modeling_dataset.parquet
     deps:
     - path: data/interim/modeling_ready.parquet
       hash: md5
@@ -49,8 +53,8 @@ stages:
       size: 125850
     - path: src/modeling
       hash: md5
-      md5: 9ed5f238c9775456d4497a73b100a6e4.dir
-      size: 253766
+      md5: fcc4e19051f577391260a2fda9e26bff.dir
+      size: 257195
       nfiles: 23
     params:
       params.yaml:
@@ -59,21 +63,43 @@ stages:
         volatility.batch_size: 32
         volatility.epochs: 30
         volatility.output_experiment: 
-          data/interim/hybrid_experiment_summary.json
+          data/processed/hybrid_experiment_summary.json
+        volatility.output_final_dataset: 
+          data/processed/final_modeling_dataset.parquet
+        volatility.output_lstm_model: models/volatility/lstm_residual_model.pt
         volatility.sequence_length: 15
         volatility.train_end: '2021-12-31'
         volatility.val_end: '2021-12-31'
     outs:
-    - path: data/interim/hybrid_experiment_summary.json
+    - path: data/processed/final_modeling_dataset.parquet
       hash: md5
-      md5: 37bbeb750efb3edd724f26eb7fb2e9b4
-      size: 81679
+      md5: 1513faa3bc002abab2d3dde65a5673a9
+      size: 580975
+    - path: data/processed/hybrid_experiment_summary.json
+      hash: md5
+      md5: a45dbed4b328f2e9f3d66fef2fe084fd
+      size: 81763
+    - path: models/volatility/lstm_residual_model.pt
+      hash: md5
+      md5: 7847d43a3d02dd0a5384a7a31b4d3aa2
+      size: 31989
   run_robustness:
     cmd: python -m src.modeling.run_robustness --prices data/raw/prices_VN.csv 
-      --model-frame data/interim/modeling_ready.parquet --sequence-length 15 
-      --train-end 2021-12-31 --val-end 2021-12-31 --epochs 30 --batch-size 32 
-      --output data/interim/robustness_experiment_summary.json
+      --model-frame data/interim/modeling_ready.parquet --daily-news 
+      data/interim/daily_news_prices.parquet --sentiment 
+      data/sentiment/article_sentiment_scores.parquet --articles-clean 
+      data/interim/articles_clean.parquet --sequence-length 15 --train-end 
+      2021-12-31 --val-end 2021-12-31 --epochs 30 --batch-size 32 --output 
+      data/processed/robustness_experiment_summary.json
     deps:
+    - path: data/interim/articles_clean.parquet
+      hash: md5
+      md5: 54ef040ef4195f2d879af0e949b3de11
+      size: 257151788
+    - path: data/interim/daily_news_prices.parquet
+      hash: md5
+      md5: 9a40da73eb6dc89d941dccf8523ff7aa
+      size: 165297
     - path: data/interim/modeling_ready.parquet
       hash: md5
       md5: 32aaa500921d2ea03e4e7c521d4ef6f3
@@ -82,58 +108,70 @@ stages:
       hash: md5
       md5: 8430db40dad115c3a12d6f790b0a5a13
       size: 125850
+    - path: data/sentiment/article_sentiment_scores.parquet
+      hash: md5
+      md5: 1407c68ccad71b87d1bf3dadf986eeb1
+      size: 5219060
     - path: src/modeling
       hash: md5
-      md5: 9ed5f238c9775456d4497a73b100a6e4.dir
-      size: 253766
+      md5: b086d67d1fafef6d8834ff1a12e6d6ad.dir
+      size: 257197
       nfiles: 23
     params:
       params.yaml:
         paths.interim_dir: data/interim
         paths.prices: data/raw/prices_VN.csv
+        paths.sentiment_dir: data/sentiment
         volatility.batch_size: 32
         volatility.epochs: 30
         volatility.output_robustness: 
-          data/interim/robustness_experiment_summary.json
+          data/processed/robustness_experiment_summary.json
         volatility.sequence_length: 15
         volatility.train_end: '2021-12-31'
         volatility.val_end: '2021-12-31'
     outs:
-    - path: data/interim/robustness_experiment_summary.json
+    - path: data/processed/robustness_experiment_summary.json
       hash: md5
-      md5: b375d1a94338d4e07200387527ddbd34
-      size: 2466
+      md5: 245d59b40d758c04b71551a9e7932d42
+      size: 2445
   plot_results_extras:
-    cmd: python -m src.modeling.plot_results_extras
+    cmd: python -m src.modeling.plot_results_extras --sentiment 
+      data/sentiment/article_sentiment_scores.parquet --summary 
+      data/processed/robustness_experiment_summary.json --output-dir 
+      report/figures
     deps:
-    - path: data/interim/robustness_experiment_summary.json
+    - path: data/processed/robustness_experiment_summary.json
       hash: md5
-      md5: b375d1a94338d4e07200387527ddbd34
-      size: 2466
+      md5: 245d59b40d758c04b71551a9e7932d42
+      size: 2445
     - path: data/sentiment/article_sentiment_scores.parquet
       hash: md5
       md5: 1407c68ccad71b87d1bf3dadf986eeb1
       size: 5219060
     - path: src/modeling/plot_results_extras.py
       hash: md5
-      md5: 14ceb37474b258127eb731f9d64ea154
-      size: 5203
+      md5: cacdfab98f3b066ef2228cf2fc38faf5
+      size: 5491
     params:
       params.yaml:
         paths.sentiment_dir: data/sentiment
         volatility.output_robustness: 
-          data/interim/robustness_experiment_summary.json
+          data/processed/robustness_experiment_summary.json
     outs:
     - path: report/figures/robustness_comparison.png
       hash: md5
-      md5: c90d60431f877d60bfae794fb038d5d5
-      size: 188159
+      md5: 92bb347870f37c894f95d272343d5cc4
+      size: 181223
     - path: report/figures/sentiment_distribution.png
       hash: md5
       md5: 1c39fd4abb8df337d3b7581b9f43a8b4
       size: 168148
   descriptive_stats:
-    cmd: python -m src.modeling.compute_descriptive_stats
+    cmd: python -m src.modeling.compute_descriptive_stats --prices 
+      data/raw/prices_VN.csv --articles-clean 
+      data/interim/articles_clean.parquet --sentiment 
+      data/sentiment/article_sentiment_scores.parquet --daily-news 
+      data/interim/daily_news_prices.parquet --output-dir report/tables
     deps:
     - path: data/interim/articles_clean.parquet
       hash: md5
@@ -153,8 +191,8 @@ stages:
       size: 5219060
     - path: src/modeling/compute_descriptive_stats.py
       hash: md5
-      md5: 2ddae1bd8af50bf6c6613a857e4906b2
-      size: 6366
+      md5: e0cefb2c515a1124a6312e5be5043852
+      size: 6970
     params:
       params.yaml:
         paths.interim_dir: data/interim

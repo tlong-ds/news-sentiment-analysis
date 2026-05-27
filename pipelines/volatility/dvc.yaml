@@ -14,6 +14,8 @@ stages:
       --epochs ${volatility.epochs}
       --batch-size ${volatility.batch_size}
       --output ${volatility.output_experiment}
+      --model-output ${volatility.output_lstm_model}
+      --dataset-output ${volatility.output_final_dataset}
     deps:
       - src/modeling
       - ${paths.prices}
@@ -27,8 +29,12 @@ stages:
       - volatility.epochs
       - volatility.batch_size
       - volatility.output_experiment
+      - volatility.output_lstm_model
+      - volatility.output_final_dataset
     outs:
       - ${volatility.output_experiment}
+      - ${volatility.output_lstm_model}
+      - ${volatility.output_final_dataset}
 
   run_robustness:
     wdir: ../..
@@ -36,6 +42,9 @@ stages:
       python -m src.modeling.run_robustness
       --prices ${paths.prices}
       --model-frame ${paths.interim_dir}/modeling_ready.parquet
+      --daily-news ${paths.interim_dir}/daily_news_prices.parquet
+      --sentiment ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      --articles-clean ${paths.interim_dir}/articles_clean.parquet
       --sequence-length ${volatility.sequence_length}
       --train-end ${volatility.train_end}
       --val-end ${volatility.val_end}
@@ -46,9 +55,13 @@ stages:
       - src/modeling
       - ${paths.prices}
       - ${paths.interim_dir}/modeling_ready.parquet
+      - ${paths.interim_dir}/daily_news_prices.parquet
+      - ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      - ${paths.interim_dir}/articles_clean.parquet
     params:
       - paths.prices
       - paths.interim_dir
+      - paths.sentiment_dir
       - volatility.sequence_length
       - volatility.train_end
       - volatility.val_end
@@ -60,7 +73,11 @@ stages:
 
   plot_results:
     wdir: ../..
-    cmd: python -m src.modeling.plot_results
+    cmd: >-
+      python -m src.modeling.plot_results
+      --prices ${paths.prices}
+      --summary ${volatility.output_experiment}
+      --output-dir report/figures
     deps:
       - src/modeling/plot_results.py
       - ${paths.prices}
@@ -75,7 +92,11 @@ stages:
 
   plot_results_extras:
     wdir: ../..
-    cmd: python -m src.modeling.plot_results_extras
+    cmd: >-
+      python -m src.modeling.plot_results_extras
+      --sentiment ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      --summary ${volatility.output_robustness}
+      --output-dir report/figures
     deps:
       - src/modeling/plot_results_extras.py
       - ${paths.sentiment_dir}/article_sentiment_scores.parquet
@@ -89,7 +110,13 @@ stages:
 
   descriptive_stats:
     wdir: ../..
-    cmd: python -m src.modeling.compute_descriptive_stats
+    cmd: >-
+      python -m src.modeling.compute_descriptive_stats
+      --prices ${paths.prices}
+      --articles-clean ${paths.interim_dir}/articles_clean.parquet
+      --sentiment ${paths.sentiment_dir}/article_sentiment_scores.parquet
+      --daily-news ${paths.interim_dir}/daily_news_prices.parquet
+      --output-dir report/tables
     deps:
       - src/modeling/compute_descriptive_stats.py
       - ${paths.prices}

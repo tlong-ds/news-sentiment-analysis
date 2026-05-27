@@ -11,6 +11,8 @@ paths:
 sentiment:
   batch_size: 32
   max_length: 256
+  train_epochs: 2
+  train_batch_size: 8
 
 model_frame:
   target_type: parkinson
@@ -22,5 +24,7 @@ volatility:
   val_end: "2021-12-31"
   epochs: 30
   batch_size: 32
-  output_experiment: data/interim/hybrid_experiment_summary.json
-  output_robustness: data/interim/robustness_experiment_summary.json
+  output_experiment: data/processed/hybrid_experiment_summary.json
+  output_robustness: data/processed/robustness_experiment_summary.json
+  output_lstm_model: models/volatility/lstm_residual_model.pt
+  output_final_dataset: data/processed/final_modeling_dataset.parquet

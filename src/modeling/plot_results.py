@@ -1,5 +1,6 @@
 """Generate figures for the LaTeX report."""
 
+import argparse
 import json
 import logging
 from pathlib import Path
@@ -187,19 +188,24 @@ def plot_forecast_comparison(summary_path: str | Path, output_dir: Path) -> None
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate report figures.")
+    parser.add_argument("--prices", default="data/raw/prices_VN.csv")
+    parser.add_argument(
+        "--summary", default="data/processed/hybrid_experiment_summary.json"
+    )
+    parser.add_argument("--output-dir", default="report/figures")
+    args = parser.parse_args()
+
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
 
-    prices = "data/raw/prices_VN.csv"
-    summary = "data/interim/hybrid_experiment_summary.json"
-
-    output_dir = Path("report/figures")
+    output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    plot_return_distribution(prices, output_dir)
-    plot_volatility_clustering(prices, output_dir)
-    plot_forecast_comparison(summary, output_dir)
+    plot_return_distribution(args.prices, output_dir)
+    plot_volatility_clustering(args.prices, output_dir)
+    plot_forecast_comparison(args.summary, output_dir)
 
 
 if __name__ == "__main__":

@@ -75,7 +75,17 @@ def parse_args() -> argparse.Namespace:
         help="Build the experiment frame and evaluate the GARCH baseline without training the LSTM.",
     )
     parser.add_argument(
-        "--output", default="data/interim/hybrid_experiment_summary.json"
+        "--output", default="data/processed/hybrid_experiment_summary.json"
+    )
+    parser.add_argument(
+        "--model-output",
+        default="models/volatility/lstm_residual_model.pt",
+        help="Path to save trained LSTM model state dict (.pt).",
+    )
+    parser.add_argument(
+        "--dataset-output",
+        default="data/processed/final_modeling_dataset.parquet",
+        help="Path to save the final processed modeling dataset with GARCH features (.parquet).",
     )
     add_tracking_arguments(parser)
 
@@ -115,6 +125,13 @@ def main() -> None:
         )
         logging.info("Model frame loaded. Fitting baseline GARCH features...")
         model_df = add_garch_features(model_df, train_end=args.train_end)
+
+        # Save final processed dataset
+        dataset_output_path = Path(args.dataset_output)
+        dataset_output_path.parent.mkdir(parents=True, exist_ok=True)
+        model_df.to_parquet(dataset_output_path, index=False)
+        logging.info("Saved final processed dataset -> %s", dataset_output_path)
+
         logging.info("GARCH features added. Building LSTM sequences...")
 
         feature_columns = [
@@ -189,6 +206,11 @@ def main() -> None:
                 residual_pred = lstm_model(x_test_tensor).cpu().numpy().reshape(-1, 1)
             hybrid_pred = baseline + residual_pred
             summary["hybrid_metrics"] = evaluate_forecasts(actual, hybrid_pred)
+
+            model_output_path = Path(args.model_output)
+            model_output_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(lstm_model.state_dict(), model_output_path)
+            logging.info("Saved LSTM model state dict -> %s", model_output_path)
             summary["history"] = {
                 key: [float(value) for value in values]
                 for key, values in history.history.items()

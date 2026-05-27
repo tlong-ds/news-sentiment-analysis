@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument(
-        "--output", default="data/interim/robustness_experiment_summary.json"
+        "--output", default="data/processed/robustness_experiment_summary.json"
     )
     add_tracking_arguments(parser)
 

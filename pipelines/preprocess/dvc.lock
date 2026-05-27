@@ -1,0 +1,65 @@
+schema: '2.0'
+stages:
+  preprocess:
+    cmd: python -m src.preprocessing.pipeline --raw-news 
+      data/raw/news_VN_cafef.csv --prices data/raw/prices_VN.csv --out-dir 
+      data/interim
+    deps:
+    - path: data/raw/news_VN_cafef.csv
+      hash: md5
+      md5: ca641d2833bec76980c4c19fa9770c14
+      size: 868608179
+    - path: data/raw/prices_VN.csv
+      hash: md5
+      md5: 8430db40dad115c3a12d6f790b0a5a13
+      size: 125850
+    - path: src/preprocessing
+      hash: md5
+      md5: 9289e3851b46e9136949426174df52af.dir
+      size: 77245
+      nfiles: 12
+    params:
+      params.yaml:
+        paths.interim_dir: data/interim
+        paths.prices: data/raw/prices_VN.csv
+        paths.raw_news: data/raw/news_VN_cafef.csv
+    outs:
+    - path: data/interim/articles_clean.parquet
+      hash: md5
+      md5: 54ef040ef4195f2d879af0e949b3de11
+      size: 257151788
+    - path: data/interim/daily_news_prices.parquet
+      hash: md5
+      md5: 9a40da73eb6dc89d941dccf8523ff7aa
+      size: 165297
+  prepare_inputs:
+    cmd: python -m src.sentiment.prepare_inputs --cafef-input 
+      data/interim/articles_clean.parquet --cafef-output 
+      data/interim/cafef_input.parquet --max-tokens 256 --report-file 
+      data/interim/input_preparation_report.json
+    deps:
+    - path: data/interim/articles_clean.parquet
+      hash: md5
+      md5: 54ef040ef4195f2d879af0e949b3de11
+      size: 257151788
+    - path: src/sentiment/common.py
+      hash: md5
+      md5: 48068af45af3d21a124f78772615551b
+      size: 9129
+    - path: src/sentiment/prepare_inputs.py
+      hash: md5
+      md5: 180891674f762cf940020f5751197e65
+      size: 5400
+    params:
+      params.yaml:
+        paths.interim_dir: data/interim
+        sentiment.max_length: 256
+    outs:
+    - path: data/interim/cafef_input.parquet
+      hash: md5
+      md5: fb2fdabf05dcdccd1d3efed35591e248
+      size: 50736290
+    - path: data/interim/input_preparation_report.json
+      hash: md5
+      md5: ca55fd94b858afecbeb6d7cc685c51ac
+      size: 518

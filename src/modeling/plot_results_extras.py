@@ -1,5 +1,6 @@
 """Generate additional figures for the LaTeX report results section (sentiment bias and robustness comparison)."""
 
+import argparse
 import json
 import logging
 from pathlib import Path
@@ -169,18 +170,26 @@ def plot_robustness_comparison(summary_path: str | Path, output_dir: Path) -> No
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate extra report figures.")
+    parser.add_argument(
+        "--sentiment",
+        default="data/sentiment/article_sentiment_scores.parquet",
+    )
+    parser.add_argument(
+        "--summary", default="data/processed/robustness_experiment_summary.json"
+    )
+    parser.add_argument("--output-dir", default="report/figures")
+    args = parser.parse_args()
+
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
 
-    sentiment_path = "data/sentiment/article_sentiment_scores.parquet"
-    summary_path = "data/interim/robustness_experiment_summary.json"
-
-    output_dir = Path("report/figures")
+    output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    plot_sentiment_distribution(sentiment_path, output_dir)
-    plot_robustness_comparison(summary_path, output_dir)
+    plot_sentiment_distribution(args.sentiment, output_dir)
+    plot_robustness_comparison(args.summary, output_dir)
 
 
 if __name__ == "__main__":

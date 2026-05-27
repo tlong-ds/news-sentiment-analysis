@@ -1,0 +1,41 @@
+vars:
+  - ../../params.yaml
+
+stages:
+  preprocess:
+    wdir: ../..
+    cmd: >-
+      python -m src.preprocessing.pipeline
+      --raw-news ${paths.raw_news}
+      --prices ${paths.prices}
+      --out-dir ${paths.interim_dir}
+    deps:
+      - src/preprocessing
+      - ${paths.raw_news}
+      - ${paths.prices}
+    params:
+      - paths.raw_news
+      - paths.prices
+      - paths.interim_dir
+    outs:
+      - ${paths.interim_dir}/articles_clean.parquet
+      - ${paths.interim_dir}/daily_news_prices.parquet
+
+  prepare_inputs:
+    wdir: ../..
+    cmd: >-
+      python -m src.sentiment.prepare_inputs
+      --cafef-input ${paths.interim_dir}/articles_clean.parquet
+      --cafef-output ${paths.interim_dir}/cafef_input.parquet
+      --max-tokens ${sentiment.max_length}
+      --report-file ${paths.interim_dir}/input_preparation_report.json
+    deps:
+      - src/sentiment/prepare_inputs.py
+      - src/sentiment/common.py
+      - ${paths.interim_dir}/articles_clean.parquet
+    params:
+      - paths.interim_dir
+      - sentiment.max_length
+    outs:
+      - ${paths.interim_dir}/cafef_input.parquet
+      - ${paths.interim_dir}/input_preparation_report.json

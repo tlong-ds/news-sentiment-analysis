@@ -101,8 +101,8 @@ dvc repro pipelines/sentiment/dvc.yaml
 dvc repro pipelines/volatility/dvc.yaml
 ```
 
-- `pipelines/sentiment/dvc.yaml`: preprocess → prepare_inputs → infer → merge → validations → modeling frame
-- `pipelines/volatility/dvc.yaml`: experiment → robustness → figures/tables
+- `pipelines/sentiment/dvc.yaml`: raw → preprocess → prepare_inputs → infer → (optional merge/validations) → build modeling frame (`modeling_ready.parquet`)
+- `pipelines/volatility/dvc.yaml`: `modeling_ready.parquet` → volatility experiments → figures/tables
 
 Notes:
 - The inference stage expects a local sentiment checkpoint directory (see `paths.model_dir` in `params.yaml`).

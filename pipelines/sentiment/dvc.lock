@@ -310,3 +310,42 @@ stages:
       md5: f576599f9c464db1a8a6d9c44277cb81.dir
       size: 542219863
       nfiles: 4
+  bootstrap_labels:
+    cmd: python -m src.sentiment.bootstrap_labels --input-file 
+      data/interim/training_corpus.parquet --output-file 
+      data/interim/training_bootstrap_labels.parquet --raw-output-file 
+      data/interim/training_bootstrap_labels.raw.jsonl --report-file 
+      data/interim/training_bootstrap_labels.report.json
+    deps:
+    - path: data/interim/training_corpus.parquet
+      hash: md5
+      md5: 0b0872d7448bbfa66651d714587a1b52
+      size: 138554495
+    - path: src/sentiment/bootstrap_labels.py
+      hash: md5
+      md5: ed74068e11b123989f68db6f5d3da374
+      size: 15968
+    - path: src/sentiment/common.py
+      hash: md5
+      md5: 48068af45af3d21a124f78772615551b
+      size: 9129
+    - path: src/utils/io.py
+      hash: md5
+      md5: c9f06f6b674fd84d3db7c3ec0dc157ab
+      size: 1286
+    params:
+      params.yaml:
+        paths.interim_dir: data/interim
+    outs:
+    - path: data/interim/training_bootstrap_labels.parquet
+      hash: md5
+      md5: f7c852a072e02bd0e3f11998668df9f1
+      size: 12891798
+    - path: data/interim/training_bootstrap_labels.raw.jsonl
+      hash: md5
+      md5: b8c965c9dea521880e1e81ffa2357c58
+      size: 809099961
+    - path: data/interim/training_bootstrap_labels.report.json
+      hash: md5
+      md5: e1ca9f2cebbd8b626c6ffc8a2cbd3fd7
+      size: 318

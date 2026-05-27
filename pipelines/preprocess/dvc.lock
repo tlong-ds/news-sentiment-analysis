@@ -15,8 +15,8 @@ stages:
       size: 125850
     - path: src/preprocessing
       hash: md5
-      md5: 9289e3851b46e9136949426174df52af.dir
-      size: 77245
+      md5: 4bdd0015cd50ff9c03477e70a4bc0a6c.dir
+      size: 76960
       nfiles: 12
     params:
       params.yaml:

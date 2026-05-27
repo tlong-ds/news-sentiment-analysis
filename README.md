@@ -43,9 +43,11 @@ python -m src.sentiment.sample_annotation \
   --input-file data/interim/training_corpus.parquet \
   --output-file data/interim/annotation_sample.csv
 
+# Merge annotations: if you have manual reviewed annotations, pass them via --annotations-file.
+# Otherwise the pipeline will run bootstrap labeling and use its internal output.
 python -m src.sentiment.merge_annotations \
   --corpus-file data/interim/training_corpus.parquet \
-  --annotations-file data/interim/training_annotations.csv \
+  --annotations-file data/interim/training_bootstrap_labels.parquet \
   --output-file data/interim/training_labeled.parquet
 ```
 
@@ -82,13 +84,11 @@ python -m src.sentiment.merge_sentiment_with_articles \
 python -m src.sentiment.run_pipeline \
   --mode train \
   --training-input data/interim/training_input.parquet \
-  --labeled-input data/interim/training_annotations.csv \
   --model-dir models/phobert-sentiment/latest
 
 python -m src.sentiment.run_pipeline \
   --mode full \
   --training-input data/interim/training_input.parquet \
-  --labeled-input data/interim/training_annotations.csv \
   --model-dir models/phobert-sentiment/latest
 ```
 

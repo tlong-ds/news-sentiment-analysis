@@ -17,7 +17,7 @@ Install dependencies with `pip install -r requirements.txt`.
 Key workflows:
 - `python -m src.preprocessing.pipeline --raw-news data/raw/news_VN_cafef.csv --prices data/raw/prices_VN.csv --out-dir data/interim`
   Builds `articles_clean.parquet` and `daily_news_prices.parquet`.
-- `python -m src.sentiment.run_pipeline --mode train --training-input data/interim/training_input.parquet --labeled-input data/interim/training_annotations.csv --model-dir models/phobert-sentiment/latest`
+- `python -m src.sentiment.run_pipeline --mode train --training-input data/interim/training_input.parquet --model-dir models/phobert-sentiment/latest`
   Prepares training data and trains the classifier.
 - `python -m src.sentiment.run_pipeline --mode infer --model-dir models/phobert-sentiment/latest`
   Runs CafeF inference and validation.

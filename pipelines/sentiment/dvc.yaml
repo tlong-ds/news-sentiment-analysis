@@ -22,12 +22,12 @@ stages:
     cmd: >-
       python -m src.sentiment.merge_annotations
       --corpus-file ${paths.interim_dir}/training_corpus.parquet
-      --annotations-file ${paths.interim_dir}/training_annotations.csv
+      --annotations-file ${paths.interim_dir}/training_bootstrap_labels.parquet
       --output-file ${paths.interim_dir}/training_labeled.parquet
     deps:
       - src/sentiment/merge_annotations.py
       - ${paths.interim_dir}/training_corpus.parquet
-      - ${paths.interim_dir}/training_annotations.csv
+      - ${paths.interim_dir}/training_bootstrap_labels.parquet
     params:
       - paths.interim_dir
     outs:

@@ -76,11 +76,10 @@ stages:
       md5: f576599f9c464db1a8a6d9c44277cb81.dir
       size: 542219863
       nfiles: 4
-    - path: src/sentiment
+    - path: src/sentiment/infer_cafef.py
       hash: md5
-      md5: d92a7d8fcd5bb493b9334e0a9104036f.dir
-      size: 369541
-      nfiles: 32
+      md5: a78f2bd78acdbb8dcd687fe52964f653
+      size: 6059
     params:
       params.yaml:
         paths.interim_dir: data/interim
@@ -206,11 +205,14 @@ stages:
       hash: md5
       md5: 1407c68ccad71b87d1bf3dadf986eeb1
       size: 5219060
-    - path: src/modeling
+    - path: src/modeling/dataset.py
       hash: md5
-      md5: 9ed5f238c9775456d4497a73b100a6e4.dir
-      size: 253766
-      nfiles: 23
+      md5: 5606ef012c4ade842c01c2d007be7530
+      size: 14463
+    - path: src/modeling/prepare_model_frame.py
+      hash: md5
+      md5: 4bc47dbb3f4577c4e1e1535c03ce9f34
+      size: 2165
     params:
       params.yaml:
         model_frame.sentiment_threshold: 0.05
@@ -252,3 +254,59 @@ stages:
       hash: md5
       md5: 6259fbea623428b17c3ac11aceae937c
       size: 590
+  merge_annotations:
+    cmd: python -m src.sentiment.merge_annotations --corpus-file 
+      data/interim/training_corpus.parquet --annotations-file 
+      data/interim/training_bootstrap_labels.parquet --output-file 
+      data/interim/training_labeled.parquet
+    deps:
+    - path: data/interim/training_bootstrap_labels.parquet
+      hash: md5
+      md5: f7c852a072e02bd0e3f11998668df9f1
+      size: 12891798
+    - path: data/interim/training_corpus.parquet
+      hash: md5
+      md5: 0b0872d7448bbfa66651d714587a1b52
+      size: 138554495
+    - path: src/sentiment/merge_annotations.py
+      hash: md5
+      md5: 189f9a83a043a713daee2322ca6c14fd
+      size: 7215
+    params:
+      params.yaml:
+        paths.interim_dir: data/interim
+    outs:
+    - path: data/interim/training_labeled.parquet
+      hash: md5
+      md5: 4c560906501ce4c86aee180bc97df575
+      size: 58059111
+    - path: data/interim/training_labeled.report.json
+      hash: md5
+      md5: e42bdf6f99f4dc969404977738698cb7
+      size: 335
+  train_classifier:
+    cmd: python -m src.sentiment.train_classifier --labeled-input 
+      data/interim/training_labeled.parquet --output-dir 
+      models/phobert-sentiment/latest --epochs 2 --batch-size 8 --max-length 256
+    deps:
+    - path: data/interim/training_labeled.parquet
+      hash: md5
+      md5: 4c560906501ce4c86aee180bc97df575
+      size: 58059111
+    - path: src/sentiment/train_classifier.py
+      hash: md5
+      md5: e309ec6e9625536a8d69f1264bfce1b3
+      size: 14048
+    params:
+      params.yaml:
+        paths.interim_dir: data/interim
+        paths.model_dir: models/phobert-sentiment/latest
+        sentiment.max_length: 256
+        sentiment.train_batch_size: 8
+        sentiment.train_epochs: 2
+    outs:
+    - path: models/phobert-sentiment/latest
+      hash: md5
+      md5: f576599f9c464db1a8a6d9c44277cb81.dir
+      size: 542219863
+      nfiles: 4

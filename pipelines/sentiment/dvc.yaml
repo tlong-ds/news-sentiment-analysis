@@ -17,6 +17,26 @@ stages:
       - ${paths.interim_dir}/training_corpus.parquet
       - ${paths.interim_dir}/training_corpus.report.json
 
+  bootstrap_labels:
+    wdir: ../..
+    cmd: >-
+      python -m src.sentiment.bootstrap_labels
+      --input-file ${paths.interim_dir}/training_corpus.parquet
+      --output-file ${paths.interim_dir}/training_bootstrap_labels.parquet
+      --raw-output-file ${paths.interim_dir}/training_bootstrap_labels.raw.jsonl
+      --report-file ${paths.interim_dir}/training_bootstrap_labels.report.json
+    deps:
+      - src/sentiment/bootstrap_labels.py
+      - src/sentiment/common.py
+      - src/utils/io.py
+      - ${paths.interim_dir}/training_corpus.parquet
+    params:
+      - paths.interim_dir
+    outs:
+      - ${paths.interim_dir}/training_bootstrap_labels.parquet
+      - ${paths.interim_dir}/training_bootstrap_labels.raw.jsonl
+      - ${paths.interim_dir}/training_bootstrap_labels.report.json
+
   merge_annotations:
     wdir: ../..
     cmd: >-

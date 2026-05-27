@@ -12,9 +12,7 @@ vnstock
 
 # Modeling stack for the thesis workflow
 scikit-learn
-tensorflow>=2.16.1
 yfinance
-tf-keras>=2.16.0
 torch>=2.0.0
 transformers>=4.40.0
 tqdm

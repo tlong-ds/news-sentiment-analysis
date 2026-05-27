@@ -5,21 +5,19 @@ from __future__ import annotations
 # ruff: noqa: E402
 
 import os
+import torch
+import logging
 
+logger = logging.getLogger(__name__)
+
+# Prevent OpenMP deadlocks on macOS/Unix by limiting thread pools
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-import tensorflow as tf
-
-tf.config.threading.set_intra_op_parallelism_threads(1)
-tf.config.threading.set_inter_op_parallelism_threads(1)
-
-# Initialize TensorFlow backend/thread pools to prevent OpenMP deadlocks on macOS
-_ = tf.keras.layers.Dense(1)(tf.zeros((1, 1)))
+torch.set_num_threads(1)
 
 from dataclasses import dataclass
 from typing import Iterable
@@ -503,55 +501,143 @@ def build_lstm_sequences(
     return bundle, meta
 
 
+class ResidualLSTM(torch.nn.Module):
+    """PyTorch equivalent of the TensorFlow Keras Sequential model for residual forecasting."""
+
+    def __init__(self, input_dim: int, lstm_units: int = 32):
+        super().__init__()
+        self.lstm = torch.nn.LSTM(
+            input_size=input_dim,
+            hidden_size=lstm_units,
+            batch_first=True,
+        )
+        self.fc1 = torch.nn.Linear(lstm_units, 16)
+        self.relu = torch.nn.ReLU()
+        self.fc2 = torch.nn.Linear(16, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x shape: (batch_size, seq_len, input_dim)
+        lstm_out, _ = self.lstm(x)
+        # Get the output of the last sequence step
+        out = lstm_out[:, -1, :]
+        out = self.fc1(out)
+        out = self.relu(out)
+        out = self.fc2(out)
+        return out
+
+
+class PyTorchHistory:
+    """Wrapper to mimic Keras history.history dict behavior for metrics logging."""
+
+    def __init__(self) -> None:
+        self.history: dict[str, list[float]] = {
+            "loss": [],
+            "val_loss": [],
+            "mae": [],
+            "val_mae": [],
+        }
+
+
 def train_lstm_residual_model(
     sequences: dict[str, np.ndarray],
     *,
     epochs: int = 30,
     batch_size: int = 32,
     lstm_units: int = 32,
-):
-    """Train the residual-correction LSTM if TensorFlow is available."""
-    try:
-        import tensorflow as tf
-    except ModuleNotFoundError as exc:
-        raise RuntimeError(
-            "TensorFlow is required for the LSTM stage. Install it from "
-            "requirements.txt before training the hybrid model."
-        ) from exc
+) -> tuple[torch.nn.Module, PyTorchHistory]:
+    """Train the residual-correction LSTM using PyTorch."""
+    import copy
 
-    model = tf.keras.Sequential(
-        [
-            tf.keras.layers.Input(shape=sequences["x_train"].shape[1:]),
-            tf.keras.layers.LSTM(lstm_units, unroll=True),
-            tf.keras.layers.Dense(16, activation="relu"),
-            tf.keras.layers.Dense(1),
-        ]
+    device = torch.device(
+        "cuda"
+        if torch.cuda.is_available()
+        else ("mps" if torch.backends.mps.is_available() else "cpu")
     )
-    model.compile(
-        optimizer="adam", loss="mse", metrics=[tf.keras.metrics.MeanAbsoluteError()]
-    )
+    logger.info("Training LSTM residual model on device: %s", device)
+
+    x_train_np = sequences["x_train"]
+    y_train_np = sequences["y_train"]
+    input_dim = x_train_np.shape[-1]
+
+    # Convert to PyTorch tensors
+    x_train = torch.tensor(x_train_np, dtype=torch.float32).to(device)
+    y_train = torch.tensor(y_train_np, dtype=torch.float32).to(device)
 
     has_validation = "x_val" in sequences and len(sequences["x_val"]) > 0
-    callbacks = []
     if has_validation:
-        callbacks.append(
-            tf.keras.callbacks.EarlyStopping(
-                monitor="val_loss",
-                patience=5,
-                restore_best_weights=True,
-            )
-        )
-    history = model.fit(
-        sequences["x_train"],
-        sequences["y_train"],
-        validation_data=(sequences["x_val"], sequences["y_val"])
-        if has_validation
-        else None,
-        epochs=epochs,
-        batch_size=batch_size,
-        verbose=2,
-        callbacks=callbacks,
+        x_val = torch.tensor(sequences["x_val"], dtype=torch.float32).to(device)
+        y_val = torch.tensor(sequences["y_val"], dtype=torch.float32).to(device)
+
+    model = ResidualLSTM(input_dim=input_dim, lstm_units=lstm_units).to(device)
+    optimizer = torch.optim.Adam(model.parameters())
+    criterion = torch.nn.MSELoss()
+
+    history = PyTorchHistory()
+    best_loss = float("inf")
+    best_weights = None
+    patience = 5
+    patience_counter = 0
+
+    # Build simple DataLoaders
+    train_dataset = torch.utils.data.TensorDataset(x_train, y_train)
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True
     )
+
+    for epoch in range(1, epochs + 1):
+        model.train()
+        train_loss = 0.0
+        train_mae = 0.0
+        for batch_x, batch_y in train_loader:
+            optimizer.zero_grad()
+            outputs = model(batch_x)
+            loss = criterion(outputs, batch_y)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item() * batch_x.size(0)
+            train_mae += torch.abs(outputs - batch_y).sum().item()
+
+        train_loss /= len(x_train)
+        train_mae /= len(x_train)
+
+        history.history["loss"].append(train_loss)
+        history.history["mae"].append(train_mae)
+
+        log_msg = (
+            f"Epoch {epoch}/{epochs} - loss: {train_loss:.6f} - mae: {train_mae:.6f}"
+        )
+
+        if has_validation:
+            model.eval()
+            with torch.no_grad():
+                val_outputs = model(x_val)
+                val_loss = criterion(val_outputs, y_val).item()
+                val_mae = torch.abs(val_outputs - y_val).mean().item()
+
+            history.history["val_loss"].append(val_loss)
+            history.history["val_mae"].append(val_mae)
+            log_msg += f" - val_loss: {val_loss:.6f} - val_mae: {val_mae:.6f}"
+
+            # Early stopping check
+            if val_loss < best_loss:
+                best_loss = val_loss
+                best_weights = copy.deepcopy(model.state_dict())
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= patience:
+                    logger.info("Early stopping triggered at epoch %d", epoch)
+                    break
+        else:
+            # If no validation set, just keep the latest weights
+            best_weights = copy.deepcopy(model.state_dict())
+
+        logger.info(log_msg)
+
+    if best_weights is not None:
+        model.load_state_dict(best_weights)
+
+    model.eval()
     return model, history
 
 

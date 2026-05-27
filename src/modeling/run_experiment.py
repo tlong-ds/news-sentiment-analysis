@@ -5,21 +5,16 @@ from __future__ import annotations
 # ruff: noqa: E402
 
 import os
+import torch
 
+# Prevent OpenMP deadlocks on macOS/Unix by limiting thread pools
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-import tensorflow as tf
-
-tf.config.threading.set_intra_op_parallelism_threads(1)
-tf.config.threading.set_inter_op_parallelism_threads(1)
-
-# Initialize TensorFlow backend/thread pools to prevent OpenMP deadlocks on macOS
-_ = tf.keras.layers.Dense(1)(tf.zeros((1, 1)))
+torch.set_num_threads(1)
 
 import argparse
 import json
@@ -185,11 +180,13 @@ def main() -> None:
                 epochs=args.epochs,
                 batch_size=args.batch_size,
             )
-            logging.info("LSTM training completed. Evaluating forecasts...")
-
-            residual_pred = (
-                lstm_model(sequences["x_test"], training=False).numpy().reshape(-1, 1)
+            device = next(lstm_model.parameters()).device
+            x_test_tensor = torch.tensor(sequences["x_test"], dtype=torch.float32).to(
+                device
             )
+            lstm_model.eval()
+            with torch.no_grad():
+                residual_pred = lstm_model(x_test_tensor).cpu().numpy().reshape(-1, 1)
             hybrid_pred = baseline + residual_pred
             summary["hybrid_metrics"] = evaluate_forecasts(actual, hybrid_pred)
             summary["history"] = {

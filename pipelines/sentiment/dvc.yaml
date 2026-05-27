@@ -50,7 +50,6 @@ stages:
       --max-length ${sentiment.max_length}
     deps:
       - src/sentiment
-      - ${paths.model_dir}
       - ${paths.interim_dir}/cafef_input.parquet
     params:
       - paths.model_dir

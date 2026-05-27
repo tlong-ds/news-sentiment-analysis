@@ -104,6 +104,11 @@ dvc repro pipelines/volatility/dvc.yaml
 - `pipelines/sentiment/dvc.yaml`: preprocess → prepare_inputs → infer → merge → validations → modeling frame
 - `pipelines/volatility/dvc.yaml`: experiment → robustness → figures/tables
 
+Notes:
+- The inference stage expects a local sentiment checkpoint directory (see `paths.model_dir` in `params.yaml`).
+- If `run_robustness` is too slow for iteration, lower `volatility.epochs` in `params.yaml` and re-run:
+  `dvc repro pipelines/volatility/dvc.yaml:run_robustness`
+
 ## Sentiment Contract
 
 - `src.sentiment.prepare_inputs` prepares unlabeled CafeF inference rows from `data/interim/articles_clean.parquet`.

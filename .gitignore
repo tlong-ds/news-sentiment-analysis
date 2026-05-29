@@ -56,9 +56,11 @@ report/*.aux
 report/*.log
 report/*.out
 report/*.toc
+report/*.synctex.*
+report/*.fdb_latexmk
+report/*.fls
 report/*.blg
 report/*.bbl
-report/*.pdf
 
 
 # Environment Files

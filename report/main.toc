@@ -1,18 +1,48 @@
-\contentsline {section}{\numberline {1}Introduction}{3}{section.1}%
-\contentsline {section}{\numberline {2}Review of Relevant Literature}{3}{section.2}%
-\contentsline {section}{\numberline {3}Data and Methodology}{5}{section.3}%
-\contentsline {subsection}{\numberline {3.1}Data and Sample Selection}{5}{subsection.3.1}%
-\contentsline {subsection}{\numberline {3.2}Trading-Day Alignment and Imputation}{5}{subsection.3.2}%
-\contentsline {subsection}{\numberline {3.3}Sentiment Construction}{5}{subsection.3.3}%
-\contentsline {subsection}{\numberline {3.4}Volatility target definitions}{6}{subsection.3.4}%
-\contentsline {subsection}{\numberline {3.5}Econometric \& Neural Network Specifications}{6}{subsection.3.5}%
-\contentsline {subsubsection}{\numberline {3.5.1}Baseline AR(1)-GARCH(1,1)}{6}{subsubsection.3.5.1}%
-\contentsline {subsubsection}{\numberline {3.5.2}AR(1)-GARCH-X(1,1)}{6}{subsubsection.3.5.2}%
-\contentsline {subsubsection}{\numberline {3.5.3}Hybrid GARCH + Sentiment LSTM}{7}{subsubsection.3.5.3}%
-\contentsline {section}{\numberline {4}Empirical Results}{7}{section.4}%
-\contentsline {subsection}{\numberline {4.1}Descriptive Statistics \& GARCH Diagnostics}{7}{subsection.4.1}%
-\contentsline {subsection}{\numberline {4.2}Volatility Forecast Performance}{9}{subsection.4.2}%
-\contentsline {subsection}{\numberline {4.3}Subperiod and Regime Sensitivity Analysis}{10}{subsection.4.3}%
-\contentsline {subsection}{\numberline {4.4}Robustness Checks}{10}{subsection.4.4}%
-\contentsline {section}{\numberline {5}Discussion of Findings}{12}{section.5}%
-\contentsline {section}{\numberline {6}Conclusion}{13}{section.6}%
+\contentsline {section}{\numberline {1}Introduction}{4}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Motivation and Research Question}{4}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Limitations of Linear Sentiment-GARCH Models}{4}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Data and Main Contribution}{5}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}Paper Organization}{5}{subsection.1.4}%
+\contentsline {section}{\numberline {2}Review of Literature}{5}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Volatility Modeling: From ARCH to Hybrid Approaches}{5}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}News Sentiment and Market Volatility}{6}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Natural Language Processing for Financial Sentiment}{6}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Hybrid GARCH-Deep Learning Models and Nonlinear Dynamics}{7}{subsection.2.4}%
+\contentsline {subsection}{\numberline {2.5}Vietnamese Equity Market Structure and Microstructure}{7}{subsection.2.5}%
+\contentsline {subsection}{\numberline {2.6}Research Gap and Contribution}{8}{subsection.2.6}%
+\contentsline {section}{\numberline {3}Data and Methodology}{8}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Data Sources and Sample Construction}{8}{subsection.3.1}%
+\contentsline {subsubsection}{\numberline {3.1.1}Index Price Data}{8}{subsubsection.3.1.1}%
+\contentsline {subsubsection}{\numberline {3.1.2}Financial News Corpus}{9}{subsubsection.3.1.2}%
+\contentsline {subsection}{\numberline {3.2}Trading-Day Alignment Protocol}{9}{subsection.3.2}%
+\contentsline {subsubsection}{\numberline {3.2.1}Coverage and Missing Data}{9}{subsubsection.3.2.1}%
+\contentsline {subsection}{\numberline {3.3}Sentiment Pipeline and Variable Construction}{10}{subsection.3.3}%
+\contentsline {subsubsection}{\numberline {3.3.1}PhoBERT Sentiment Classification}{10}{subsubsection.3.3.1}%
+\contentsline {subsubsection}{\numberline {3.3.2}Daily Sentiment Features}{10}{subsubsection.3.3.2}%
+\contentsline {subsection}{\numberline {3.4}Realized Volatility Targets}{11}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Model Specifications}{11}{subsection.3.5}%
+\contentsline {subsubsection}{\numberline {3.5.1}Stage 1: Baseline AR(1)-GARCH(1,1)}{11}{subsubsection.3.5.1}%
+\contentsline {subsubsection}{\numberline {3.5.2}Stage 2: LSTM Residual Learning}{12}{subsubsection.3.5.2}%
+\contentsline {subsubsection}{\numberline {3.5.3}Benchmark: Linear GARCH-X}{12}{subsubsection.3.5.3}%
+\contentsline {subsection}{\numberline {3.6}Training, Validation, and Test Protocol}{13}{subsection.3.6}%
+\contentsline {subsection}{\numberline {3.7}Evaluation Metrics}{13}{subsection.3.7}%
+\contentsline {section}{\numberline {4}Empirical Results}{13}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Descriptive Statistics and Market Microstructure}{13}{subsection.4.1}%
+\contentsline {subsubsection}{\numberline {4.1.1}Return Dynamics and Volatility Clustering}{13}{subsubsection.4.1.1}%
+\contentsline {subsubsection}{\numberline {4.1.2}News Sentiment Distribution and Media Bias}{15}{subsubsection.4.1.2}%
+\contentsline {subsubsection}{\numberline {4.1.3}GARCH(1,1) Baseline Specification and Diagnostics}{15}{subsubsection.4.1.3}%
+\contentsline {subsection}{\numberline {4.2}Out-of-Sample Forecast Performance}{16}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Regime-Dependent Performance: Calm vs. Crisis Periods}{16}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Robustness Across Alternative Specifications}{17}{subsection.4.4}%
+\contentsline {subsubsection}{\numberline {4.4.1}Alternative Sentiment Thresholds}{18}{subsubsection.4.4.1}%
+\contentsline {subsubsection}{\numberline {4.4.2}Alternative Volatility Target: Garman-Klass}{18}{subsubsection.4.4.2}%
+\contentsline {subsubsection}{\numberline {4.4.3}Feature Ablation: Testing the Architecture's Role}{18}{subsubsection.4.4.3}%
+\contentsline {subsubsection}{\numberline {4.4.4}The Critical Benchmark: Linear GARCH-X}{18}{subsubsection.4.4.4}%
+\contentsline {subsubsection}{\numberline {4.4.5}Expanding Window Estimation}{19}{subsubsection.4.4.5}%
+\contentsline {subsection}{\numberline {4.5}Summary of Empirical Findings}{19}{subsection.4.5}%
+\contentsline {section}{\numberline {5}Discussion}{20}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Interpreting the Hybrid Model's Success: Mechanisms and Limitations}{20}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Connection to Prior Findings: Asymmetry and Sentiment in Emerging Markets}{20}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Limitations and Caveats}{21}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Implications for Market Participants}{21}{subsection.5.4}%
+\contentsline {section}{\numberline {6}Conclusion}{21}{section.6}%

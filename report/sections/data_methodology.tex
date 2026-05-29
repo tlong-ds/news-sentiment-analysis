@@ -1,60 +1,156 @@
 \section{Data and Methodology}
 
-\subsection{Data and Sample Selection}
-Our dataset spans a ten-year period from January 1, 2015, to December 31, 2024. It consists of two main components:
-\begin{enumerate}
-    \item \textbf{Index Price Data:} Daily Open, High, Low, and Close prices for the VN-Index (HoSE benchmark) were obtained from Quote history files. The daily log return is computed as $r_t = \ln(Close_t / Close_{t-1})$.
-    \item \textbf{News Corpus:} A web-scraped database of financial articles from the CafeF sitemap. After hash-based deduplication and length filtering ($body\_len \ge 100$ characters), the corpus contains $86,179$ unique articles.
-\end{enumerate}
+\subsection{Data Sources and Sample Construction}
 
-\subsection{Trading-Day Alignment and Imputation}
-Because financial markets operate on active trading sessions whereas sitemaps publish news continuously (including nights, weekends, and holidays), proper temporal alignment is critical. We define a strict trading-day alignment rule based on the HoSE session closure:
+\subsubsection{Index Price Data}
+
+We obtain daily Open, High, Low, and Close (OHLC) prices for the VN-Index (HoSE benchmark) covering January 1, 2015, through December 31, 2024, a ten-year span encompassing two major market stress periods: the COVID-19 market crash of March 2020 and the domestic liquidity tightening shock of mid-2022. The daily log return is computed as:
+$$r_t = \ln\left(\frac{\text{Close}_t}{\text{Close}_{t-1}}\right)$$
+
+The choice of ten years balances sample size with data availability: earlier historical OHLC data for the VN-Index is less reliable.
+
+\subsubsection{Financial News Corpus}
+
+The news corpus consists of 86,179 unique articles scraped from CafeF.vn, a primary Vietnamese financial news outlet widely read by HoSE investors. All articles were subjected to:
 \begin{itemize}
-    \item Articles published on a trading day $t$ before or at \textbf{14:45} (session close) are aligned to the current trading day $t$.
-    \item Articles published on a trading day $t$ after \textbf{14:45}, on weekends, or during public holidays (e.g., Lunar New Year) are aligned to the next active trading day $t+1$.
+    \item Hash-based exact-match deduplication (removing near-identical reprints),
+    \item Length filtering (retaining articles with body text $\geq 100$ characters),
+    \item Language filtering (retaining Vietnamese-language articles; multilingual articles excluded).
 \end{itemize}
 
-A key diagnostic of sitemap coverage is the frequency of zero-news trading days. The daily panel contains $2,498$ trading-day rows, and after the one-step-ahead shift there are $2,497$ forecastable volatility targets. Only $4$ days ($0.16\%$) have zero aligned news articles, so missing daily sentiment features are handled with zero-imputation:
-$$\text{n\_articles}_t = 0, \quad \text{mean\_sentiment}_t = 0.0, \quad \text{sentiment\_std}_t = 0.0$$
+After filtering, the corpus spans 2015--2024, with the vast majority of articles concentrated in 2020--2024 due to improved scraping consistency in recent years. The corpus is treated as a flowing stream of news publications; temporal alignment to trading days is addressed below.
 
-\subsection{Sentiment Construction}
-The CafeF sentiment pipeline first runs PhoBERT classifier inference at the article level and writes \texttt{sentiment\_score} as the difference between positive and negative class probabilities. The article output also records \texttt{sentiment\_label} and class probabilities for validation. Daily features are then aggregated as mean sentiment, sentiment dispersion, sentiment volume, label shares, net sentiment, a five-day sentiment surprise measure, and category-specific macro and market sentiment.
+\subsection{Trading-Day Alignment Protocol}
 
-The sentiment score is a proxy rather than a hand-labeled gold standard, so the interpretation in later sections is descriptive rather than causal.
+Because financial markets operate on discrete trading sessions (HoSE closes at 14:45 local time), while news is published continuously, proper temporal alignment between news and returns is critical. We implement a strict trading-day rule:
 
-\subsection{Volatility target definitions}
-To evaluate forecast accuracy, we construct two daily volatility proxies:
+\begin{description}
+    \item[Rule 1:] Articles published on a trading day $t$ strictly before or at the session close (14:45 HoSE time) are aligned to day $t$'s return and used in day $t$'s feature vector for predicting day $t+1$ volatility.
+    \item[Rule 2:] Articles published after 14:45 on trading day $t$, or any time on weekends or Vietnamese public holidays (Lunar New Year, National Day, etc.), are aligned to the next active trading day $t+1$.
+\end{description}
+
+This protocol ensures that only news known at the market close (information available for the next day's trading) is used in volatility features. Overnight news (published after close) influences the next trading day's open and thus next-day volatility, not same-day volatility.
+
+\subsubsection{Coverage and Missing Data}
+
+The aligned daily panel contains 2,498 trading days over the ten-year sample. Only 4 trading days (0.16\%) have zero aligned articles, indicating continuous news coverage. For these rare zero-coverage days, we impute zero sentiment and news volume. The one-step-ahead volatility prediction framework (forecasting day $t+1$ volatility using day $t$ features) yields 2,497 forecastable observations after dropping the first trading day.
+
+\subsection{Sentiment Pipeline and Variable Construction}
+
+\subsubsection{PhoBERT Sentiment Classification}
+
+Each article undergoes sentence-level preprocessing using the VnCoreNLP toolkit (Vietnamese word segmentation and sentence splitting). Titles and first paragraphs (up to 256 tokens per the PhoBERT vocabulary limit) are combined and fed into a fine-tuned PhoBERT-base classifier trained to output three-class sentiment labels (positive, negative, neutral). The classifier outputs, for each article:
+\begin{itemize}
+    \item $\text{sentiment\_score} = P(\text{positive}) - P(\text{negative})$, a pseudo-continuous score in $[-1, 1]$ representing polarity strength,
+    \item $\text{sentiment\_label} \in \{\text{negative}, \text{neutral}, \text{positive}\}$, the class label,
+    \item class probabilities $P(\text{positive}), P(\text{negative}), P(\text{neutral})$.
+\end{itemize}
+
+The continuous score is used for daily aggregation; the label is used for constructing sentiment shares described below.
+
+\textit{Caveat:} PhoBERT sentiment scores are imperfect proxies for true news content. They introduce measurement error and miss context-dependent or sarcastic sentiment. Results should be interpreted as describing the association between computed sentiment and volatility, not causal effects of true sentiment. Validation against hand-labeled subsets (e.g., Vu et al.'s 2,738-sample benchmark) is advisable in future work.
+
+\subsubsection{Daily Sentiment Features}
+
+Each trading day $t$ aggregates article-level scores across all aligned articles. The primary features are:
+
 \begin{enumerate}
-    \item \textbf{Parkinson Volatility:} A high-low range estimator:
-    $$\sigma_{P, t} = \sqrt{\frac{\left(\ln\left(H_t / L_t\right)\right)^2}{4 \ln 2}}$$
-    where $H_t$ and $L_t$ are the high and low prices of index on day $t$.
-    \item \textbf{Garman-Klass Volatility:} An estimator incorporating opening and closing gaps:
-    $$\sigma_{GK, t} = \sqrt{0.5 \left(\ln\frac{H_t}{L_t}\right)^2 - (2\ln 2 - 1)\left(\ln\frac{C_t}{O_t}\right)^2}$$
-    where $C_t$ and $O_t$ are the close and open prices.
+    \item \textbf{Mean Sentiment} ($\text{mean\_sentiment}_t$): The average $\text{sentiment\_score}$ across articles on day $t$. 
+    $$\text{mean\_sentiment}_t = \frac{1}{n_t} \sum_{i=1}^{n_t} \text{sentiment\_score}_{i,t}$$
+    This captures the dominant market tone. Given Vietnamese news' positive bias (mean $\approx 0.45$), this feature has high autocorrelation and modest daily variation.
+    
+    \item \textbf{Sentiment Dispersion} ($\text{sentiment\_std}_t$): The standard deviation of sentiment scores within a day, a proxy for disagreement among articles.
+    $$\text{sentiment\_std}_t = \text{std}\left(\{\text{sentiment\_score}_{i,t}\}_{i=1}^{n_t}\right)$$
+    Per \citet{antweiler2004all}, disagreement (not just sentiment direction) predicts volatility, as disagreement reflects uncertainty about future returns.
+    
+    \item \textbf{Article Count} ($n_{articles,t}$): The number of articles published on day $t$.
+    $$n_{articles,t} = \left|\{i : \text{article } i \text{ aligned to day } t\}\right|$$
+    Article volume independently predicts volatility (\citet{bodilsen2025exploiting}), as high-volume news days signal high information intensity.
+    
+    \item \textbf{Sentiment Label Shares}: The fraction of articles classified as positive, negative, or neutral.
+    $$\text{positive\_share}_t = \frac{\#\{\text{positive articles on day } t\}}{n_{articles,t}}$$
+    $$\text{negative\_share}_t = \frac{\#\{\text{negative articles on day } t\}}{n_{articles,t}}$$
+    These allow investigation of asymmetric sentiment effects. Per \citet{vu2023sentiments}, negative sentiment may have larger volatility impact than positive sentiment in Vietnam.
 \end{enumerate}
-The target variable is the lead volatility proxy: $y^{\text{vol}}_{t+1} = \sigma_{t+1}$.
 
-\subsection{Econometric \& Neural Network Specifications}
+\subsection{Realized Volatility Targets}
 
-\subsubsection{Baseline AR(1)-GARCH(1,1)}
-Returns are scaled by 100 ($y_t = r_t \times 100$). The mean equation is modeled as an autoregressive process of order 1 to capture short-term return autocorrelation:
-$$y_t = c + \phi y_{t-1} + e_t$$
-where $c$ is a constant intercept, $\phi$ is the autoregressive parameter, and $e_t \sim N(0, \sigma_t^2)$ is the mean-equation residual. The conditional variance of the residuals is modeled recursively:
+To evaluate forecast accuracy, we construct two daily volatility proxies using intraday high-low ranges, which are more efficient estimators than close-to-close squared returns alone:
+
+\begin{enumerate}
+    \item \textbf{Parkinson Volatility:}
+    $$\sigma_{P, t+1} = \sqrt{\frac{\left(\ln(H_{t+1} / L_{t+1})\right)^2}{4 \ln 2}}$$
+    where $H_{t+1}$ and $L_{t+1}$ are the day's high and low prices. This is our primary target.
+    
+    \item \textbf{Garman-Klass Volatility:}
+    $$\sigma_{GK, t+1} = \sqrt{0.5 \left(\ln\frac{H_{t+1}}{L_{t+1}}\right)^2 - (2\ln 2 - 1)\left(\ln\frac{C_{t+1}}{O_{t+1}}\right)^2}$$
+    where $O_{t+1}$ and $C_{t+1}$ are opening and closing prices. This incorporates overnight gaps and is used for robustness checks.
+\end{enumerate}
+
+Both estimators are unbiased for log-normal prices and more statistically efficient than close-to-close squared returns under standard assumptions. We use Parkinson as the primary target for Stage 1 GARCH calibration and Stage 2 LSTM prediction.
+
+\subsection{Model Specifications}
+
+\subsubsection{Stage 1: Baseline AR(1)-GARCH(1,1)}
+
+The baseline model captures linear conditional heteroskedasticity from returns alone. Returns are scaled by 100 ($y_t = 100 \cdot r_t$) for numerical stability. The mean equation is AR(1) to accommodate short-term return autocorrelation observed empirically:
+$$y_t = c + \phi y_{t-1} + e_t, \quad e_t \sim N(0, \sigma_t^2)$$
+
+The conditional variance is modeled as:
 $$\sigma_t^2 = \omega + \alpha e_{t-1}^2 + \beta \sigma_{t-1}^2$$
-subject to constraints: $\omega > 0$, $\alpha \ge 0$, $\beta \ge 0$, $\alpha + \beta < 1.0$, and $|\phi| < 1.0$ for covariance stationarity.
 
-\subsubsection{AR(1)-GARCH-X(1,1)}
-For comparison, the GARCH-X model integrates the exogenous sentiment variable $X_{t-1}$ directly into the variance equation:
-$$\sigma_t^2 = \omega + \alpha e_{t-1}^2 + \beta \sigma_{t-1}^2 + \gamma X_{t-1}$$
-where $e_{t-1}$ is the lagged residual from the AR(1) mean equation and $X_{t-1}$ is the lagged daily aggregate \texttt{mean\_sentiment}.
+subject to standard constraints for covariance stationarity: $\omega > 0$, $\alpha, \beta \geq 0$, $\alpha + \beta < 1$, $|\phi| < 1$.
 
-\subsubsection{Hybrid GARCH + Sentiment LSTM}
-The hybrid model uses a two-stage approach. In Stage 1, baseline AR(1)-GARCH parameters are estimated, and the 1-step-ahead GARCH volatility forecast $\sigma_{t, \text{GARCH}}$ (standard deviation) is computed. The conditional residual target for day $t$ is:
-$$\text{hybrid\_residual\_target}_t = \sigma_{t, \text{realized}} - \sigma_{t, \text{GARCH}}$$
-In Stage 2, an LSTM network is trained to predict this residual. The input sequence is a rolling window of length $L=15$ days containing 17 features (including returns, GARCH standardized residuals $\epsilon_t$, daily article counts, daily mean sentiment, net sentiment, macro/market category sentiment shares, and GARCH conditional variance $\sigma^2_t$). Crucially, the LSTM inputs utilize the conditional variance $\sigma^2_t$ (via the \texttt{garch\_forecast\_var} feature) rather than the standard deviation ($\sigma_t$) to represent historical baseline risk.
-The final hybrid volatility forecast is:
-$$\sigma_{t, \text{hybrid}} = \sigma_{t, \text{GARCH}} + \hat{u}_{t, \text{LSTM}}$$
-where $\hat{u}_{t, \text{LSTM}}$ is the residual predicted by the neural network.
+\textit{Justification:} GARCH(1,1) is parsimonious (three parameters), has proven effective across asset classes, and provides an interpretable baseline. The conditional variance $\sigma_t^2$ captures two economically meaningful dynamics: volatility persistence (via $\beta$) and shock intensity (via $\alpha$). This stage is estimated via maximum likelihood on the training sample (2015--2021).
 
-The current implementation uses a chronological train/test split (with the validation set size set to 0 to maximize training samples) and treats the held-out window as the evaluation sample.
+\subsubsection{Stage 2: LSTM Residual Learning}
+
+After fitting GARCH(1,1), we compute standardized residuals $\hat{\epsilon}_t = e_t / \sigma_t$. These should be approximately i.i.d. normal if the model is well-specified, but may contain remaining structure. We define the learning target as the gap between realized and GARCH-forecasted volatility:
+$$\text{residual\_target}_{t+1} = \sigma_{P, t+1} - \hat{\sigma}_{t+1}^{\text{GARCH}}$$
+
+where $\hat{\sigma}_{t+1}^{\text{GARCH}}$ is the one-step-ahead GARCH volatility forecast made at day $t$.
+
+An LSTM is trained to map daily feature sequences to this residual. The input is a rolling window of length $L = 15$ trading days, containing 17 features per day:
+\begin{itemize}
+    \item Daily returns $r_t$,
+    \item GARCH standardized residuals $\hat{\epsilon}_t$,
+    \item GARCH conditional variance $\sigma_t^2$,
+    \item Daily article count $n_{articles, t}$,
+    \item Mean sentiment $\text{mean\_sentiment}_t$,
+    \item Sentiment dispersion $\text{sentiment\_std}_t$,
+    \item Positive and negative sentiment shares.
+\end{itemize}
+
+The LSTM processes these sequences and outputs a scalar residual prediction $\hat{u}_t^{\text{LSTM}}$. The final hybrid forecast is:
+$$\hat{\sigma}_{t+1}^{\text{Hybrid}} = \hat{\sigma}_{t+1}^{\text{GARCH}} + \hat{u}_{t+1}^{\text{LSTM}}$$
+
+\textit{Justification:} LSTMs naturally process temporal sequences and capture state-dependent nonlinearities that linear models miss. By training on residuals rather than raw variance, we allow LSTM to learn only the nonlinear component, preserving GARCH's interpretability. The 15-day window balances capturing sentiment trends (shorter windows miss patterns) and avoiding overfitting (longer windows introduce noise).
+
+\subsubsection{Benchmark: Linear GARCH-X}
+
+For comparison, we fit a linear GARCH-X that adds mean sentiment directly to the variance equation:
+$$\sigma_t^2 = \omega + \alpha e_{t-1}^2 + \beta \sigma_{t-1}^2 + \gamma \cdot \text{mean\_sentiment}_{t-1}$$
+
+If linear sentiment effects sufficed, GARCH-X should outperform the hybrid (GARCH-X is simpler). Empirically, we expect GARCH-X to underperform because sentiment-variance nonlinearity dominates.
+
+\subsection{Training, Validation, and Test Protocol}
+
+The data are split chronologically to avoid look-ahead bias:
+\begin{itemize}
+    \item \textbf{Training:} 2015--2021 (1,753 observations), used to estimate GARCH(1,1) parameters and train LSTM weights.
+    \item \textbf{Test:} 2022--2024 (744 observations), held-out to evaluate one-step-ahead forecast accuracy of all models.
+\end{itemize}
+
+A validation set is not used; all training data are pooled to maximize sample size. The test period intentionally includes the 2022 liquidity shock, allowing robustness checks across regimes.
+
+\subsection{Evaluation Metrics}
+
+One-step-ahead forecast accuracy is measured using standard point-forecast metrics:
+\begin{itemize}
+    \item \textbf{Root Mean Squared Error (RMSE):} $\text{RMSE} = \sqrt{\frac{1}{n} \sum_{t=1}^{n} (\sigma_{t,\text{realized}} - \sigma_{t,\text{forecast}})^2}$
+    \item \textbf{Mean Absolute Error (MAE):} $\text{MAE} = \frac{1}{n} \sum_{t=1}^{n} |\sigma_{t,\text{realized}} - \sigma_{t,\text{forecast}}|$
+    \item \textbf{Mean Absolute Percentage Error (MAPE):} $\text{MAPE} = \frac{100\%}{n} \sum_{t=1}^{n} \left|\frac{\sigma_{t,\text{realized}} - \sigma_{t,\text{forecast}}}{\sigma_{t,\text{realized}}}\right|$
+\end{itemize}
+
+Statistical significance of forecast improvement is tested using the Diebold-Mariano test with Newey-West lag adjustment, which accounts for forecast error autocorrelation.
 

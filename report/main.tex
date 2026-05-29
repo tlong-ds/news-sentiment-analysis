@@ -43,7 +43,7 @@
 This paper proposes and evaluates a hybrid volatility forecasting framework that combines a GARCH(1,1) baseline with an LSTM residual-correction model. Using daily Open, High, Low, Close price data for the benchmark VN-Index and a web-scraped corpus of $86,179$ CafeF articles spanning 2015 to 2024, we build a daily modeling frame with article-level PhoBERT sentiment scores, trading-day alignment, and news-intensity features. On the held-out test window, the hybrid model reduces Root Mean Squared Error (RMSE) by $14.48\%$ and Mean Absolute Percentage Error (MAPE) by $48.00\%$ relative to the baseline GARCH model. A Diebold-Mariano test rejects equal predictive accuracy at the $99.9\%$ confidence level ($p < 0.001$). Robustness checks cover alternative sentiment thresholds, a Garman-Klass volatility target, feature ablation, linear GARCH-X, and expanding-window re-estimation; the linear GARCH-X specification performs worst.
 \end{abstract}
 
-\noindent\textbf{Keywords:} VN-Index; volatility forecasting; GARCH; LSTM; sentiment analysis; CafeF.
+\noindent\textbf{Keywords:} Volatility forecasting; GARCH-LSTM; sentiment analysis; emerging markets; hybrid deep learning; financial news; Vietnamese equity; nonlinear models; residual learning.
 
 \newpage
 \tableofcontents
